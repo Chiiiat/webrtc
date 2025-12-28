@@ -30,94 +30,87 @@ import (
 	"github.com/pion/webrtc/v4/pkg/rtcerr"
 )
 
-// PeerConnection represents a WebRTC connection that establishes a
-// peer-to-peer communications with another PeerConnection instance in a
-// browser, or to another endpoint implementing the required protocols.
+// PeerConnection：表示与另一个 PeerConnection 实例的点对点通信连接
 type PeerConnection struct {
-	id string
-	mu sync.RWMutex
+	id string       // 【状态管理字段】PeerConnection 实例的唯一标识符
+	mu sync.RWMutex // 【并发控制字段】保护 PeerConnection 的状态和资源，防止多个 goroutine 同时访问
 
-	sdpOrigin sdp.Origin
+	sdpOrigin sdp.Origin // 【SDP 相关字段】SDP 中的 ORIGIN 字段，包含会话的唯一标识符
 
-	// ops is an operations queue which will ensure the enqueued actions are
-	// executed in order. It is used for asynchronously, but serially processing
-	// remote and local descriptions
+	/*
+		ops is an operations queue which will ensure the enqueued actions are
+		executed in order. It is used for asynchronously, but serially processing
+		remote and local descriptions
+	*/
 	ops *operations
 
-	configuration Configuration
+	configuration Configuration // 连接配置
 
-	currentLocalDescription  *SessionDescription
-	pendingLocalDescription  *SessionDescription
-	currentRemoteDescription *SessionDescription
-	pendingRemoteDescription *SessionDescription
-	signalingState           SignalingState
-	iceConnectionState       atomic.Value // ICEConnectionState
-	connectionState          atomic.Value // PeerConnectionState
+	currentLocalDescription  *SessionDescription // 【描述符管理字段】当前有效的本地描述
+	pendingLocalDescription  *SessionDescription // 【描述符管理字段】待处理的本地描述
+	currentRemoteDescription *SessionDescription // 【描述符管理字段】当前有效的远程描述
+	pendingRemoteDescription *SessionDescription // 【描述符管理字段】待处理的远程描述
+	signalingState           SignalingState      // 【状态管理字段】信令状态（Stable, HaveLocalOffer, HaveRemoteOffer等）
+	iceConnectionState       atomic.Value        // 【状态管理字段】ICE 连接状态（New, Checking, Connected 等）
+	connectionState          atomic.Value        // 【状态管理字段】整体连接状态（Stable, HaveLocalOffer, HaveRemoteOffer等）
 
-	idpLoginURL *string
+	idpLoginURL *string // 【IDP 相关字段】IDP 登录 URL
 
-	isClosed                                *atomic.Bool
-	isGracefullyClosingOrClosed             bool
-	isCloseDone                             chan struct{}
-	isGracefulCloseDone                     chan struct{}
-	isNegotiationNeeded                     *atomic.Bool
-	updateNegotiationNeededFlagOnEmptyChain *atomic.Bool
+	isClosed                                *atomic.Bool  // 【状态管理字段】是否已关闭
+	isGracefullyClosingOrClosed             bool          // 【状态管理字段】是否正在优雅地关闭或已关闭
+	isCloseDone                             chan struct{} // 【状态管理字段】关闭完成信号通道
+	isGracefulCloseDone                     chan struct{} // 【状态管理字段】优雅关闭完成信号通道
+	isNegotiationNeeded                     *atomic.Bool  // 【状态管理字段】是否需要协商
+	updateNegotiationNeededFlagOnEmptyChain *atomic.Bool  // 【状态管理字段】是否在空链上更新协商需要标志
 
-	lastOffer  string
-	lastAnswer string
-	// Whether the remote endpoint can accept trickled ICE candidates.
-	canTrickleICECandidates ICETrickleCapability
+	lastOffer               string               // 【SDP 相关字段】最后一个 Offer 的 SDP 描述
+	lastAnswer              string               // 【SDP 相关字段】最后一个 Answer 的 SDP 描述
+	canTrickleICECandidates ICETrickleCapability // 【ICE 相关字段】是否可以 trickle ICE 候选者
 
-	// a value containing the last known greater mid value
-	// we internally generate mids as numbers. Needed since JSEP
-	// requires that when reusing a media section a new unique mid
-	// should be defined (see JSEP 3.4.1).
-	greaterMid int
+	/*
+		todo：a value containing the last known greater mid value
+		we internally generate mids as numbers. Needed since JSEP
+		requires that when reusing a media section a new unique mid
+		should be defined (see JSEP 3.4.1).
+	*/
+	greaterMid int // 【SDP 相关字段】大于当前已知最大 mid 值的值
 
-	rtpTransceivers        []*RTPTransceiver
-	nonMediaBandwidthProbe atomic.Value // RTPReceiver
+	rtpTransceivers        []*RTPTransceiver // 【媒体处理字段】RTP 传输器列表，处理音视频流
+	nonMediaBandwidthProbe atomic.Value      // 【媒体处理字段】用于非媒体带宽探测的接收器
 
-	onSignalingStateChangeHandler     func(SignalingState)
-	onICEConnectionStateChangeHandler atomic.Value // func(ICEConnectionState)
-	onConnectionStateChangeHandler    atomic.Value // func(PeerConnectionState)
-	onTrackHandler                    func(*TrackRemote, *RTPReceiver)
-	onDataChannelHandler              func(*DataChannel)
-	onNegotiationNeededHandler        atomic.Value // func()
+	onSignalingStateChangeHandler     func(SignalingState)             // 【事件处理字段】信令状态变化处理函数
+	onICEConnectionStateChangeHandler atomic.Value                     // 【事件处理字段】ICE 连接状态变化处理函数
+	onConnectionStateChangeHandler    atomic.Value                     // 【事件处理字段】连接状态变化处理函数
+	onTrackHandler                    func(*TrackRemote, *RTPReceiver) // 【事件处理字段】轨道处理函数
+	onDataChannelHandler              func(*DataChannel)               // 【事件处理字段】数据通道处理函数
+	onNegotiationNeededHandler        atomic.Value                     // 【事件处理字段】协商需要处理函数
 
-	iceGatherer   *ICEGatherer
-	iceTransport  *ICETransport
-	dtlsTransport *DTLSTransport
-	sctpTransport *SCTPTransport
+	iceGatherer   *ICEGatherer   // 【协议传输层字段】ICE 收集器，负责收集候选地址
+	iceTransport  *ICETransport  // 【协议传输层字段】ICE 传输器，负责建立连接
+	dtlsTransport *DTLSTransport // 【协议传输层字段】DTLS 传输器，提供加密
+	sctpTransport *SCTPTransport // 【协议传输层字段】SCTP 传输器，用于数据通道
 
-	// A reference to the associated API state used by this connection
-	api *API
-	log logging.LeveledLogger
+	api *API                  // 关联的API对象，包含媒体引擎、拦截器等
+	log logging.LeveledLogger // 日志记录器，用于记录连接的详细信息
 
-	interceptorRTCPWriter interceptor.RTCPWriter
+	interceptorRTCPWriter interceptor.RTCPWriter // 拦截器 RTCP 写入器，用于处理 RTCP 数据包
 	statsGetter           stats.Getter
 }
 
-// NewPeerConnection creates a PeerConnection with the default codecs and interceptors.
-//
-// If you wish to customize the set of available codecs and/or the set of active interceptors,
-// create an API with a custom MediaEngine and/or interceptor.Registry,
-// then call [(*API).NewPeerConnection] instead of this function.
+// NewPeerConnection 使用默认 API
 func NewPeerConnection(configuration Configuration) (*PeerConnection, error) {
 	api := NewAPI()
 
 	return api.NewPeerConnection(configuration)
 }
 
-// NewPeerConnection creates a new PeerConnection with the provided configuration against the received API object.
-// This method will attach a default set of codecs and interceptors to
-// the resulting PeerConnection.  If this behavior is not desired,
-// set the set of codecs and interceptors explicitly by using
-// [WithMediaEngine] and [WithInterceptorRegistry] when calling [NewAPI].
+// NewPeerConnection 使用指定 API
 func (api *API) NewPeerConnection(configuration Configuration) (*PeerConnection, error) {
 	// https://w3c.github.io/webrtc-pc/#constructor (Step #2)
 	// Some variables defined explicitly despite their implicit zero values to
 	// allow better readability to understand what is happening.
 
+	// 1. 初始化阶段
 	pc := &PeerConnection{
 		id: fmt.Sprintf("PeerConnection-%d", time.Now().UnixNano()),
 		configuration: Configuration{
@@ -141,25 +134,43 @@ func (api *API) NewPeerConnection(configuration Configuration) (*PeerConnection,
 		api: api,
 		log: api.settingEngine.LoggerFactory.NewLogger("pc"),
 	}
+	// 2. 操作队列初始化
+	/*
+		创建操作队列，确保异步操作按顺序执行
+		用于串行处理本地和远程描述
+	*/
 	pc.ops = newOperations(pc.updateNegotiationNeededFlagOnEmptyChain, pc.onNegotiationNeeded)
 
 	pc.iceConnectionState.Store(ICEConnectionStateNew)
 	pc.connectionState.Store(PeerConnectionStateNew)
 
+	// 3. 拦截器初始化
+	/*
+		构建拦截器链，用于处理 RTP/RTCP 包
+		拦截器可以修改或观察传输的媒体包
+	*/
 	i, err := api.interceptorRegistry.Build(pc.id)
 	if err != nil {
 		return nil, err
 	}
 
+	// 4. 统计信息初始化
+	/*
+		获取统计信息，用于性能监控和调试
+	*/
 	if getter, ok := lookupStats(pc.id); ok {
 		pc.statsGetter = getter
 	}
 
+	// 5. API 克隆与媒体引擎设置
+	/*
+		创建一个 API 对象，包含媒体引擎、拦截器等
+		用于创建和管理 PeerConnection
+	*/
 	pc.api = &API{
 		settingEngine: api.settingEngine,
 		interceptor:   i,
 	}
-
 	if api.settingEngine.disableMediaEngineCopy {
 		pc.api.mediaEngine = api.mediaEngine
 	} else {
@@ -167,30 +178,35 @@ func (api *API) NewPeerConnection(configuration Configuration) (*PeerConnection,
 		pc.api.mediaEngine.setMultiCodecNegotiation(!api.settingEngine.disableMediaEngineMultipleCodecs)
 	}
 
+	// 6. 配置验证与初始化
+	/*
+		初始化连接配置，包括 ICE 服务器、证书等
+	*/
 	if err = pc.initConfiguration(configuration); err != nil {
 		return nil, err
 	}
 
+	// 7. ICE 组件创建
+	// 创建 ICE 收集器，用于收集候选地址
 	pc.iceGatherer, err = pc.createICEGatherer()
 	if err != nil {
 		return nil, err
 	}
-
-	// Create the ice transport
+	// 创建 ICE 传输器，用于建立连接
 	iceTransport := pc.createICETransport()
 	pc.iceTransport = iceTransport
 
-	// Create the DTLS transport
+	// 8. DTLS 传输创建
 	dtlsTransport, err := pc.api.NewDTLSTransport(pc.iceTransport, pc.configuration.Certificates)
 	if err != nil {
 		return nil, err
 	}
 	pc.dtlsTransport = dtlsTransport
 
-	// Create the SCTP transport
+	// 9. SCTP 传输创建
 	pc.sctpTransport = pc.api.NewSCTPTransport(pc.dtlsTransport)
 
-	// Wire up the on datachannel handler
+	// 10. 事件处理器设置
 	pc.sctpTransport.OnDataChannel(func(d *DataChannel) {
 		pc.mu.RLock()
 		handler := pc.onDataChannelHandler
@@ -200,6 +216,7 @@ func (api *API) NewPeerConnection(configuration Configuration) (*PeerConnection,
 		}
 	})
 
+	// 11. RTCP 拦截器设置
 	pc.interceptorRTCPWriter = pc.api.interceptor.BindRTCPWriter(interceptor.RTCPWriterFunc(pc.writeRTCP))
 
 	return pc, nil
@@ -622,19 +639,17 @@ func (pc *PeerConnection) hasLocalDescriptionChanged(desc *SessionDescription) b
 	return false
 }
 
-// CreateOffer starts the PeerConnection and generates the localDescription
-// https://w3c.github.io/webrtc-pc/#dom-rtcpeerconnection-createoffer
-//
-//nolint:gocognit,cyclop
+// CreateOffer 发起协商，不需要远程描述
 func (pc *PeerConnection) CreateOffer(options *OfferOptions) (SessionDescription, error) {
+	// 1.前置检查
 	useIdentity := pc.idpLoginURL != nil
 	switch {
-	case useIdentity:
+	case useIdentity: // 检查是否启用了身份提供者（目前未实现）
 		return SessionDescription{}, errIdentityProviderNotImplemented
-	case pc.isClosed.Load():
+	case pc.isClosed.Load(): // 检查连接是否已关闭
 		return SessionDescription{}, &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
-
+	// 如果指定了 ICE 重启，则重启 ICE 传输
 	if options != nil && options.ICERestart {
 		if err := pc.iceTransport.restart(); err != nil {
 			return SessionDescription{}, err
@@ -647,29 +662,27 @@ func (pc *PeerConnection) CreateOffer(options *OfferOptions) (SessionDescription
 		err   error
 	)
 
-	// This may be necessary to recompute if, for example, createOffer was called when only an
-	// audio RTCRtpTransceiver was added to connection, but while performing the in-parallel
-	// steps to create an offer, a video RTCRtpTransceiver was added, requiring additional
-	// inspection of video system resources.
+	// 循环生成 SDP
+	/*
+		该方法使用循环来处理在生成提议过程中可能发生的 transceiver 变化（中途可能增加/删除视频或音频的transceivers）
+	*/
 	count := 0
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 	for {
-		// We cache current transceivers to ensure they aren't
-		// mutated during offer generation. We later check if they have
-		// been mutated and recompute the offer if necessary.
+		// 缓存当前的 transceivers，以确保它们在生成过程中不被修改，若被更改则需要更改报价
 		currentTransceivers := pc.rtpTransceivers
 
-		// in-parallel steps to create an offer
+		// 判断是否为 PlanB 语义
 		// https://w3c.github.io/webrtc-pc/#dfn-in-parallel-steps-to-create-an-offer
 		isPlanB := pc.configuration.SDPSemantics == SDPSemanticsPlanB
 		if pc.currentRemoteDescription != nil && isPlanB {
 			isPlanB = descriptionPossiblyPlanB(pc.currentRemoteDescription)
 		}
 
-		// include unmatched local transceivers
-		if !isPlanB { //nolint:nestif
-			// update the greater mid if the remote description provides a greater one
+		// 3. 处理 MID 值
+		if !isPlanB { // 包括不匹配的本地 transceivers
+			// 如果不是 PlanB 语义，更新 greater mid 值
 			if pc.currentRemoteDescription != nil {
 				var numericMid int
 				for _, media := range pc.currentRemoteDescription.parsed.MediaDescriptions {
@@ -705,9 +718,10 @@ func (pc *PeerConnection) CreateOffer(options *OfferOptions) (SessionDescription
 			}
 		}
 
-		if pc.currentRemoteDescription == nil {
+		// 4.生成 SDP
+		if pc.currentRemoteDescription == nil { // 如果没有当前远程描述，则生成 unmatched SDP
 			descr, err = pc.generateUnmatchedSDP(currentTransceivers, useIdentity)
-		} else {
+		} else { // 否则生成 matched SDP
 			descr, err = pc.generateMatchedSDP(
 				currentTransceivers,
 				useIdentity,
@@ -716,35 +730,41 @@ func (pc *PeerConnection) CreateOffer(options *OfferOptions) (SessionDescription
 				false,
 			)
 		}
-
 		if err != nil {
 			return SessionDescription{}, err
 		}
 
+		// 5. 设置 SDP 参数
+		// 如果支持 ICE Trickle，则在 SDP 中添加相关标识
 		if options != nil && options.ICETricklingSupported {
 			descr.WithICETrickleAdvertised()
 		}
+		// 如果启用了 renomination，则在 SDP 中添加相关标识
 		if pc.api.settingEngine.renomination.enabled {
 			descr.WithICERenomination()
 		}
 
+		// 6. 生成最终描述
+		// 更新 SDP Origin
 		updateSDPOrigin(&pc.sdpOrigin, descr)
+		// 序列化 SDP
 		sdpBytes, err := descr.Marshal()
 		if err != nil {
 			return SessionDescription{}, err
 		}
-
+		// 创建 SessionDescription 对象
 		offer = SessionDescription{
 			Type:   SDPTypeOffer,
 			SDP:    string(sdpBytes),
 			parsed: descr,
 		}
 
-		// Verify local media hasn't changed during offer
-		// generation. Recompute if necessary
+		// 7.验证并返回最终的描述
+		// 检查本地媒体是否在生成过程中发生改变，如果发生改变且不是 PlanB 语义，则重新生成
 		if isPlanB || !pc.hasLocalDescriptionChanged(&offer) {
 			break
 		}
+		// 最多重试 128 次，避免无限循环
 		count++
 		if count >= 128 {
 			return SessionDescription{}, errExcessiveRetries
@@ -849,30 +869,31 @@ func (pc *PeerConnection) createICETransport() *ICETransport {
 	return transport
 }
 
-// CreateAnswer starts the PeerConnection and generates the localDescription.
-//
-//nolint:cyclop
+// CreateAnswer 响应协商，需要先有远程描述
 func (pc *PeerConnection) CreateAnswer(options *AnswerOptions) (SessionDescription, error) {
+	// 1.前置检查
 	useIdentity := pc.idpLoginURL != nil
 	remoteDesc := pc.RemoteDescription()
 	switch {
-	case remoteDesc == nil:
+	case remoteDesc == nil: // 检查是否有远程描述
 		return SessionDescription{}, &rtcerr.InvalidStateError{Err: ErrNoRemoteDescription}
-	case useIdentity:
+	case useIdentity: // 检查是否启用了身份提供者
 		return SessionDescription{}, errIdentityProviderNotImplemented
-	case pc.isClosed.Load():
+	case pc.isClosed.Load(): // 检查连接是否已关闭
 		return SessionDescription{}, &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	case pc.signalingState.Get() != SignalingStateHaveRemoteOffer &&
-		pc.signalingState.Get() != SignalingStateHaveLocalPranswer:
+		pc.signalingState.Get() != SignalingStateHaveLocalPranswer: // 检查信令状态是否正确
 		return SessionDescription{}, &rtcerr.InvalidStateError{Err: ErrIncorrectSignalingState}
 	}
 
+	// 2.确定 DTLS 角色
+	// 获取配置的应答 DTLS 角色
 	connectionRole := connectionRoleFromDtlsRole(pc.api.settingEngine.answeringDTLSRole)
-	if connectionRole == sdp.ConnectionRole(0) {
+	if connectionRole == sdp.ConnectionRole(0) { // 如果未配置，则使用默认角色
 		connectionRole = connectionRoleFromDtlsRole(defaultDtlsRoleAnswer)
 
-		// If one of the agents is lite and the other one is not, the lite agent must be the controlled agent.
-		// If both or neither agents are lite the offering agent is controlling.
+		// 如果其中一个代理是“轻型”而另一个不是，那么“轻型”代理就是被控制的代理
+		// 如果两个代理都是“轻型”或者两个代理都不是，那么发起交易的代理就是控制方
 		// RFC 8445 S6.1.1
 		if isIceLiteSet(remoteDesc.parsed) && !pc.api.settingEngine.candidates.ICELite {
 			connectionRole = connectionRoleFromDtlsRole(DTLSRoleServer)
@@ -881,6 +902,8 @@ func (pc *PeerConnection) CreateAnswer(options *AnswerOptions) (SessionDescripti
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 
+	// 3.生成匹配的 SDP
+	// 不包含未匹配的 transceiver
 	descr, err := pc.generateMatchedSDP(
 		pc.rtpTransceivers,
 		useIdentity,
@@ -892,24 +915,32 @@ func (pc *PeerConnection) CreateAnswer(options *AnswerOptions) (SessionDescripti
 		return SessionDescription{}, err
 	}
 
+	// 4.设置特性
+	// 如果支持 ICE Trickle，则在 SDP 中添加相关标识
 	if options != nil && options.ICETricklingSupported {
 		descr.WithICETrickleAdvertised()
 	}
+	// 如果启用了 renomination，则在 SDP 中添加相关标识
 	if pc.api.settingEngine.renomination.enabled {
 		descr.WithICERenomination()
 	}
 
+	// 5.生成最终描述
+	// 更新 SDP Origin
 	updateSDPOrigin(&pc.sdpOrigin, descr)
+	// 序列化 SDP
 	sdpBytes, err := descr.Marshal()
 	if err != nil {
 		return SessionDescription{}, err
 	}
-
+	// 创建 SessionDescription 对象
 	desc := SessionDescription{
 		Type:   SDPTypeAnswer,
 		SDP:    string(sdpBytes),
 		parsed: descr,
 	}
+
+	// 6.保存最后应答
 	pc.lastAnswer = desc.SDP
 
 	return desc, nil
@@ -1035,16 +1066,18 @@ func (pc *PeerConnection) setDescription(sd *SessionDescription, op stateChangeO
 	return err
 }
 
-// SetLocalDescription sets the SessionDescription of the local peer
-//
-//nolint:cyclop
+// SetLocalDescription 设置本地 SDP 描述
 func (pc *PeerConnection) SetLocalDescription(desc SessionDescription) error {
+	// 1.连接状态检查
 	if pc.isClosed.Load() {
 		return &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
 
+	// 2.检查是否有本地描述
 	haveLocalDescription := pc.currentLocalDescription != nil
 
+	// 3.SDP 空值处理
+	// 当 SDP 为空时，根据描述类型使用之前保存的 offer 或 answe
 	// JSEP 5.4
 	if desc.SDP == "" {
 		switch desc.Type {
@@ -1059,16 +1092,21 @@ func (pc *PeerConnection) SetLocalDescription(desc SessionDescription) error {
 		}
 	}
 
+	// 4.SDP 解析
 	desc.parsed = &sdp.SessionDescription{}
 	if err := desc.parsed.UnmarshalString(desc.SDP); err != nil {
 		return err
 	}
+
+	// 5.设置描述
 	if err := pc.setDescription(&desc, stateChangeOpSetLocal); err != nil {
 		return err
 	}
 
 	currentTransceivers := append([]*RTPTransceiver{}, pc.GetTransceivers()...)
 
+	// 6.RTP 发送器启动
+	// 如果是应答类型，启动 RTP 发送器并配置接收器
 	weAnswer := desc.Type == SDPTypeAnswer
 	remoteDesc := pc.RemoteDescription()
 	if weAnswer && remoteDesc != nil {
@@ -1082,11 +1120,12 @@ func (pc *PeerConnection) SetLocalDescription(desc SessionDescription) error {
 		})
 	}
 
+	// 7.ICE 候选收集
 	mediaSection, ok := selectCandidateMediaSection(desc.parsed)
 	if ok {
 		pc.iceGatherer.setMediaStreamIdentification(mediaSection.SDPMid, mediaSection.SDPMLineIndex)
 	}
-
+	// 如果 ICE 收集器状态为新建，开始收集候选地址
 	if pc.iceGatherer.State() == ICEGathererStateNew {
 		return pc.iceGatherer.Gather()
 	}
@@ -1106,28 +1145,31 @@ func (pc *PeerConnection) LocalDescription() *SessionDescription {
 	return pc.CurrentLocalDescription()
 }
 
-// SetRemoteDescription sets the SessionDescription of the remote peer
-//
-//nolint:gocognit,gocyclo,cyclop,maintidx
+// SetRemoteDescription 处理从远程接收到的描述
 func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
+	// 1.连接状态检查
 	if pc.isClosed.Load() {
 		return &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
 
 	isRenegotiation := pc.currentRemoteDescription != nil
 
+	// 2.SDP 解析与验证
 	if _, err := desc.Unmarshal(); err != nil {
 		return err
 	}
-
 	if err := pc.setDescription(&desc, stateChangeOpSetRemote); err != nil {
 		return err
 	}
 
+	// 3.传输配置更新
+	// 更新媒体引擎配置以匹配远程描述
 	if err := pc.api.mediaEngine.updateFromRemoteDescription(*desc.parsed); err != nil {
 		return err
 	}
 
+	// 4.ICE 候选处理
+	// 检查是否支持 ICE trickling 并设置相关标志
 	canTrickle := hasICETrickleOption(desc.parsed)
 	pc.mu.Lock()
 	switch desc.Type {

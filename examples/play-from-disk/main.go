@@ -32,18 +32,16 @@ const (
 )
 
 func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
-	// Assert that we have an audio or video file
+	// 初始化和文件检测
 	_, err := os.Stat(videoFileName)
 	haveVideoFile := !os.IsNotExist(err)
-
 	_, err = os.Stat(audioFileName)
 	haveAudioFile := !os.IsNotExist(err)
-
 	if !haveAudioFile && !haveVideoFile {
 		panic("Could not find `" + audioFileName + "` or `" + videoFileName + "`")
 	}
 
-	// Create a new RTCPeerConnection
+	// 创建 WebRTC 连接
 	peerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -61,19 +59,21 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 	}()
 
 	iceConnectedCtx, iceConnectedCtxCancel := context.WithCancel(context.Background())
-
+	// 视频处理逻辑
 	if haveVideoFile { //nolint:nestif
+		// ===视频文件解析===
+		// 打开视频文件
 		file, openErr := os.Open(videoFileName)
 		if openErr != nil {
 			panic(openErr)
 		}
-
+		// 使用 ivfreader 解析 IVF 格式头部信息
 		_, header, openErr := ivfreader.NewWith(file)
 		if openErr != nil {
 			panic(openErr)
 		}
 
-		// Determine video codec
+		// 根据 FourCC 码（AV01、VP90、VP80）确定视频编解码器类型
 		var trackCodec string
 		switch header.FourCC {
 		case "AV01":
@@ -86,7 +86,7 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 			panic(fmt.Sprintf("Unable to handle FourCC %s", header.FourCC))
 		}
 
-		// Create a video track
+		// 创建相应的视频轨道
 		videoTrack, videoTrackErr := webrtc.NewTrackLocalStaticSample(
 			webrtc.RTPCodecCapability{MimeType: trackCodec}, "video", "pion",
 		)
@@ -99,9 +99,7 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 			panic(videoTrackErr)
 		}
 
-		// Read incoming RTCP packets
-		// Before these packets are returned they are processed by interceptors. For things
-		// like NACK this needs to be called.
+		// RTCP 包处理
 		go func() {
 			rtcpBuf := make([]byte, 1500)
 			for {
@@ -111,13 +109,14 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 			}
 		}()
 
+		// ===视频传输协程===
+		// 使用 ticker 按正确的时间间隔发送视频帧（避免一次性发送导致高丢包率）
 		go func() {
-			// Open a IVF file and start reading using our IVFReader
+			// 重新打开视频文件进行读取
 			file, ivfErr := os.Open(videoFileName)
 			if ivfErr != nil {
 				panic(ivfErr)
 			}
-
 			ivf, header, ivfErr := ivfreader.NewWith(file)
 			if ivfErr != nil {
 				panic(ivfErr)
@@ -154,8 +153,10 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 		}()
 	}
 
+	// 音频处理逻辑
 	if haveAudioFile { //nolint:nestif
-		// Create a audio track
+		// ===音频文件解析===
+		// 创建音频轨道
 		audioTrack, audioTrackErr := webrtc.NewTrackLocalStaticSample(
 			webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus}, "audio", "pion",
 		)
@@ -163,14 +164,13 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 			panic(audioTrackErr)
 		}
 
+		// 创建 Opus 音频轨道（固定使用 Opus 编解码器）
 		rtpSender, audioTrackErr := peerConnection.AddTrack(audioTrack)
 		if audioTrackErr != nil {
 			panic(audioTrackErr)
 		}
 
-		// Read incoming RTCP packets
-		// Before these packets are returned they are processed by interceptors. For things
-		// like NACK this needs to be called.
+		// RTCP 包处理
 		go func() {
 			rtcpBuf := make([]byte, 1500)
 			for {
@@ -180,25 +180,24 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 			}
 		}()
 
+		// ===音频传输协程===
 		go func() {
-			// Open a OGG file and start reading using our OGGReader
 			file, oggErr := os.Open(audioFileName)
 			if oggErr != nil {
 				panic(oggErr)
 			}
-
-			// Open on oggfile in non-checksum mode.
 			ogg, _, oggErr := oggreader.NewWith(file)
 			if oggErr != nil {
 				panic(oggErr)
 			}
 
-			// Wait for connection established
 			<-iceConnectedCtx.Done()
 
 			// Keep track of last granule, the difference is the amount of samples in the buffer
 			var lastGranule uint64
 
+			// 使用固定 20ms 的页面时长发送音频数据
+			// 根据 OGG 页面的粒度位置计算样本时长
 			// It is important to use a time.Ticker instead of time.Sleep because
 			// * avoids accumulating skew, just calling time.Sleep didn't compensate for the time spent parsing the data
 			// * works around latency issues with Sleep (see https://github.com/golang/go/issues/44343)
@@ -227,17 +226,15 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 		}()
 	}
 
-	// Set the handler for ICE connection state
-	// This will notify you when the peer has connected/disconnected
+	// 监听 ICE 连接状态变化，当连接建立时取消上下文（开始发送媒体）
+	// 监听 PeerConnection 状态，处理失败和关闭状态
 	peerConnection.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		fmt.Printf("Connection State has changed %s \n", connectionState.String())
 		if connectionState == webrtc.ICEConnectionStateConnected {
 			iceConnectedCtxCancel()
 		}
 	})
-
-	// Set the handler for Peer connection state
-	// This will notify you when the peer has connected/disconnected
+	// 设置 PeerConnection 状态处理程序
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		fmt.Printf("Peer Connection State has changed: %s\n", state.String())
 
@@ -256,26 +253,18 @@ func main() { //nolint:gocognit,cyclop,gocyclo,maintidx
 			os.Exit(0)
 		}
 	})
-
-	// Wait for the offer to be pasted
 	offer := webrtc.SessionDescription{}
 	decode(readUntilNewline(), &offer)
 
-	// Set the remote SessionDescription
+	// 信令交换
 	if err = peerConnection.SetRemoteDescription(offer); err != nil {
 		panic(err)
 	}
-
-	// Create answer
 	answer, err := peerConnection.CreateAnswer(nil)
 	if err != nil {
 		panic(err)
 	}
-
-	// Create channel that is blocked until ICE Gathering is complete
 	gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
-
-	// Sets the LocalDescription, and starts our UDP listeners
 	if err = peerConnection.SetLocalDescription(answer); err != nil {
 		panic(err)
 	}
