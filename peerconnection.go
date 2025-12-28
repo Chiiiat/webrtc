@@ -1147,29 +1147,28 @@ func (pc *PeerConnection) LocalDescription() *SessionDescription {
 
 // SetRemoteDescription 处理从远程接收到的描述
 func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
-	// 1.连接状态检查
+	// 1.输入验证逻辑
+	// 连接状态检查
 	if pc.isClosed.Load() {
 		return &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
-
+	// 检查是否为重协商场景
 	isRenegotiation := pc.currentRemoteDescription != nil
-
-	// 2.SDP 解析与验证
+	// SDP 解析与验证
 	if _, err := desc.Unmarshal(); err != nil {
 		return err
 	}
+	// 设置描述
 	if err := pc.setDescription(&desc, stateChangeOpSetRemote); err != nil {
 		return err
 	}
 
-	// 3.传输配置更新
-	// 更新媒体引擎配置以匹配远程描述
+	// 2.远程描述处理逻辑(媒体和传输配置)
+	// 更新媒体引擎配置
 	if err := pc.api.mediaEngine.updateFromRemoteDescription(*desc.parsed); err != nil {
 		return err
 	}
-
-	// 4.ICE 候选处理
-	// 检查是否支持 ICE trickling 并设置相关标志
+	// 处理 ICE Trickle 支持
 	canTrickle := hasICETrickleOption(desc.parsed)
 	pc.mu.Lock()
 	switch desc.Type {
@@ -1183,38 +1182,39 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
 		pc.canTrickleICECandidates = ICETrickleCapabilityUnknown
 	}
 	pc.mu.Unlock()
-
-	// Disable RTX/FEC on RTPSenders if the remote didn't support it
+	// 配置发送器的 RTX 和 FEC
 	for _, sender := range pc.GetSenders() {
 		sender.configureRTXAndFEC()
 	}
 
+	// 3.Transceiver 处理逻辑
+	// 初始化变量
 	var transceiver *RTPTransceiver
 	localTransceivers := append([]*RTPTransceiver{}, pc.GetTransceivers()...)
 	detectedPlanB := descriptionIsPlanB(pc.RemoteDescription(), pc.log)
 	if pc.configuration.SDPSemantics != SDPSemanticsUnifiedPlan {
 		detectedPlanB = descriptionPossiblyPlanB(pc.RemoteDescription())
 	}
-
 	weOffer := desc.Type == SDPTypeAnswer
-
-	if !weOffer && !detectedPlanB { //nolint:nestif
+	// 处理媒体描述
+	if !weOffer && !detectedPlanB { // 只在 Unified Plan 且非应答方时处理
 		for _, media := range pc.RemoteDescription().parsed.MediaDescriptions {
+			// 获取 MID 值
 			midValue := getMidValue(media)
 			if midValue == "" {
 				return errPeerConnRemoteDescriptionWithoutMidValue
 			}
-
+			// 跳过应用媒体部分
 			if media.MediaName.Media == mediaSectionApplication {
 				continue
 			}
-
+			// 获取媒体类型和方向
 			kind := NewRTPCodecType(media.MediaName.Media)
 			direction := getPeerDirection(media)
 			if kind == 0 || direction == RTPTransceiverDirectionUnknown {
 				continue
 			}
-
+			// 查找或创建匹配的 transceiver
 			transceiver, localTransceivers = findByMid(midValue, localTransceivers)
 			if transceiver == nil {
 				transceiver, localTransceivers = satisfyTypeAndDirection(kind, direction, localTransceivers)
@@ -1226,14 +1226,14 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
 			if transceiver != nil {
 				transceiver.setCurrentRemoteDirection(direction)
 			}
-
+			// 根据方向处理 transceiver
 			switch {
-			case transceiver == nil:
+			case transceiver == nil: // transceiver 不存在，则创建新的 transceiver
 				receiver, err := pc.api.NewRTPReceiver(kind, pc.dtlsTransport)
 				if err != nil {
 					return err
 				}
-
+				// 根据远程方向设置本地方向
 				localDirection := RTPTransceiverDirectionRecvonly
 				if direction == RTPTransceiverDirectionRecvonly {
 					localDirection = RTPTransceiverDirectionSendonly
@@ -1248,24 +1248,24 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
 				pc.addRTPTransceiver(transceiver)
 				pc.mu.Unlock()
 
-			case direction == RTPTransceiverDirectionRecvonly:
+			case direction == RTPTransceiverDirectionRecvonly: // 更新方向
 				if transceiver.Direction() == RTPTransceiverDirectionSendrecv {
 					transceiver.setDirection(RTPTransceiverDirectionSendonly)
 				} else if transceiver.Direction() == RTPTransceiverDirectionRecvonly {
 					transceiver.setDirection(RTPTransceiverDirectionInactive)
 				}
-			case direction == RTPTransceiverDirectionSendrecv:
+			case direction == RTPTransceiverDirectionSendrecv: // 更新方向
 				if transceiver.Direction() == RTPTransceiverDirectionSendonly {
 					transceiver.setDirection(RTPTransceiverDirectionSendrecv)
 				} else if transceiver.Direction() == RTPTransceiverDirectionInactive {
 					transceiver.setDirection(RTPTransceiverDirectionRecvonly)
 				}
-			case direction == RTPTransceiverDirectionSendonly:
+			case direction == RTPTransceiverDirectionSendonly: // 更新方向
 				if transceiver.Direction() == RTPTransceiverDirectionInactive {
 					transceiver.setDirection(RTPTransceiverDirectionRecvonly)
 				}
 			}
-
+			// 设置 MID
 			if transceiver.Mid() == "" {
 				if err := transceiver.SetMid(midValue); err != nil {
 					return err
@@ -1274,34 +1274,37 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
 		}
 	}
 
+	// 4. ICE 候选处理逻辑
+	// 提取 ICE 详细信息
 	iceDetails, err := extractICEDetails(desc.parsed, pc.log)
 	if err != nil {
 		return err
 	}
-
+	// 处理重协商时的 ICE 凭据变更
 	if isRenegotiation && pc.iceTransport.haveRemoteCredentialsChange(iceDetails.Ufrag, iceDetails.Password) {
-		// An ICE Restart only happens implicitly for a SetRemoteDescription of type offer
-		if !weOffer {
+		if !weOffer { // 只有在非应答方时才重启
 			if err = pc.iceTransport.restart(); err != nil {
 				return err
 			}
 		}
-
+		// 设置 ICE 凭据
 		if err = pc.iceTransport.setRemoteCredentials(iceDetails.Ufrag, iceDetails.Password); err != nil {
 			return err
 		}
 	}
-
+	// 添加远程 ICE 候选信息
 	for i := range iceDetails.Candidates {
 		if err = pc.iceTransport.AddRemoteCandidate(&iceDetails.Candidates[i]); err != nil {
 			return err
 		}
 	}
 
+	// 5. RTP 发送器和接收器启动逻辑
+	// 获取当前 transceivers
 	currentTransceivers := append([]*RTPTransceiver{}, pc.GetTransceivers()...)
-
+	// 处理重协商场景
 	if isRenegotiation {
-		if weOffer {
+		if weOffer { // 如果是应答方（即本地是 offer 方）
 			_ = setRTPTransceiverCurrentDirection(&desc, currentTransceivers, true)
 			if err = pc.startRTPSenders(currentTransceivers); err != nil {
 				return err
@@ -1314,9 +1317,8 @@ func (pc *PeerConnection) SetRemoteDescription(desc SessionDescription) error {
 
 		return nil
 	}
-
+	// 确定 DTLS 角色并启动传输
 	remoteIsLite := isIceLiteSet(desc.parsed)
-
 	fingerprint, fingerprintHash, err := extractFingerprint(desc.parsed)
 	if err != nil {
 		return err
@@ -2174,21 +2176,23 @@ func (pc *PeerConnection) GetTransceivers() []*RTPTransceiver {
 	return pc.rtpTransceivers
 }
 
-// AddTrack adds a Track to the PeerConnection.
-//
-//nolint:cyclop
+// AddTrack 添加轨道：在已有具体的媒体轨道（如摄像头流、麦克风流）要添加时使用
 func (pc *PeerConnection) AddTrack(track TrackLocal) (*RTPSender, error) {
+	// 1.检查连接是否已关闭
 	if pc.isClosed.Load() {
 		return nil, &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
 
+	// 2.尝试复用现有的 transceiver
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
 	for _, transceiver := range pc.rtpTransceivers {
+		// 检查 transceiver 是否允许发送指定类型的轨道
 		if !transceiver.isSendAllowed(track.Kind()) {
 			continue
 		}
 
+		// 为轨道创建新的 RTP 发送器并设置到 transceiver
 		sender, err := pc.api.NewRTPSender(track, pc.dtlsTransport)
 		if err == nil {
 			err = transceiver.SetSender(sender, track)
@@ -2200,15 +2204,19 @@ func (pc *PeerConnection) AddTrack(track TrackLocal) (*RTPSender, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// 如果成功添加轨道，则触发协商需要标志并返回发送器
 		pc.onNegotiationNeeded()
 
 		return sender, nil
 	}
 
+	// 如果没有可用的 transceiver，则创建一个新的 sendrecv 类型的 transceiver
 	transceiver, err := pc.newTransceiverFromTrack(RTPTransceiverDirectionSendrecv, track)
 	if err != nil {
 		return nil, err
 	}
+	// 将新 transceiver 添加到 PeerConnection 的 transceiver 列表中
 	pc.addRTPTransceiver(transceiver)
 
 	return transceiver.Sender(), nil
@@ -2277,46 +2285,54 @@ func (pc *PeerConnection) newTransceiverFromTrack(
 	return newRTPTransceiver(receiver, sender, direction, track.Kind(), pc.api), nil
 }
 
-// AddTransceiverFromKind Create a new RtpTransceiver and adds it to the set of transceivers.
-//
-//nolint:cyclop
+// AddTransceiverFromKind 添加轨道：在想要预留一个媒体通道但还没有具体的轨道时使用
 func (pc *PeerConnection) AddTransceiverFromKind(
 	kind RTPCodecType,
 	init ...RTPTransceiverInit,
 ) (t *RTPTransceiver, err error) {
+	// 检查连接是否已关闭
 	if pc.isClosed.Load() {
 		return nil, &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
 
+	// 确定 transceiver 方向
 	direction := RTPTransceiverDirectionSendrecv
 	if len(init) > 1 {
 		return nil, errPeerConnAddTransceiverFromKindOnlyAcceptsOne
 	} else if len(init) == 1 {
 		direction = init[0].Direction
 	}
+	// 根据方向创建 transceiver
 	switch direction {
-	case RTPTransceiverDirectionSendonly, RTPTransceiverDirectionSendrecv:
+	case RTPTransceiverDirectionSendonly, RTPTransceiverDirectionSendrecv: // 为发送方向创建 transceiver
+		// 从媒体引擎获取指定类型的编解码器
 		codecs := pc.api.mediaEngine.getCodecsByKind(kind)
 		if len(codecs) == 0 {
 			return nil, ErrNoCodecsAvailable
 		}
+		// 创建一个静态本地轨道
 		track, err := NewTrackLocalStaticSample(codecs[0].RTPCodecCapability, util.MathRandAlpha(16), util.MathRandAlpha(16))
 		if err != nil {
 			return nil, err
 		}
+		// 创建一个新的 transceiver
 		t, err = pc.newTransceiverFromTrack(direction, track, init...)
 		if err != nil {
 			return nil, err
 		}
-	case RTPTransceiverDirectionRecvonly:
+	case RTPTransceiverDirectionRecvonly: // 为接收方向创建 transceiver
+		// 创建一个新的 RTP 接收器
 		receiver, err := pc.api.NewRTPReceiver(kind, pc.dtlsTransport)
 		if err != nil {
 			return nil, err
 		}
+		// 创建一个新的 recvonly transceiver，不包含发送器
 		t = newRTPTransceiver(receiver, nil, RTPTransceiverDirectionRecvonly, kind, pc.api)
-	default:
+	default: // 不支持的方向
 		return nil, errPeerConnAddTransceiverFromKindSupport
 	}
+
+	// 将 transceiver 添加到连接中
 	pc.mu.Lock()
 	pc.addRTPTransceiver(t)
 	pc.mu.Unlock()
@@ -2350,27 +2366,24 @@ func (pc *PeerConnection) AddTransceiverFromTrack(
 	return
 }
 
-// CreateDataChannel creates a new DataChannel object with the given label
-// and optional DataChannelInit used to configure properties of the
-// underlying channel such as data reliability.
-//
-//nolint:cyclop
+// CreateDataChannel 创建传输数据通道
 func (pc *PeerConnection) CreateDataChannel(label string, options *DataChannelInit) (*DataChannel, error) {
+	// 1.初始化与验证阶段
+	// 检查 PeerConnection 是否已关闭
 	// https://w3c.github.io/webrtc-pc/#peer-to-peer-data-api (Step #2)
 	if pc.isClosed.Load() {
 		return nil, &rtcerr.InvalidStateError{Err: ErrConnectionClosed}
 	}
-
+	// 创建 DataChannelParameters 并设置默认值
 	params := &DataChannelParameters{
 		Label:   label,
 		Ordered: true,
 	}
-
+	// 处理用户传入的选项参数，包括 ID、有序性、最大重传时间、协议等
 	// https://w3c.github.io/webrtc-pc/#peer-to-peer-data-api (Step #19)
 	if options != nil {
 		params.ID = options.ID
 	}
-
 	if options != nil { //nolint:nestif
 		// Ordered indicates if data is allowed to be delivered out of order. The
 		// default value of true, guarantees that data will be delivered in order.
@@ -2394,6 +2407,7 @@ func (pc *PeerConnection) CreateDataChannel(label string, options *DataChannelIn
 			params.Protocol = *options.Protocol
 		}
 
+		// 验证协议长度不超过 65535 字节
 		// https://w3c.github.io/webrtc-pc/#peer-to-peer-data-api (Step #11)
 		if len(params.Protocol) > 65535 {
 			return nil, &rtcerr.TypeError{Err: ErrProtocolTooLarge}
@@ -2405,35 +2419,43 @@ func (pc *PeerConnection) CreateDataChannel(label string, options *DataChannelIn
 		}
 	}
 
+	// 2.创建与注册阶段
+	// 通过 API 创建新的数据通道
 	dataChannel, err := pc.api.newDataChannel(params, nil, pc.log)
 	if err != nil {
 		return nil, err
 	}
 
+	// 检查 MaxPacketLifeTime 和 MaxRetransmits 不能同时设置
 	// https://w3c.github.io/webrtc-pc/#peer-to-peer-data-api (Step #16)
 	if dataChannel.maxPacketLifeTime != nil && dataChannel.maxRetransmits != nil {
 		return nil, &rtcerr.TypeError{Err: ErrRetransmitsOrPacketLifeTime}
 	}
 
+	// 将数据通道添加到 SCTP 传输层的通道列表中
 	pc.sctpTransport.lock.Lock()
 	pc.sctpTransport.dataChannels = append(pc.sctpTransport.dataChannels, dataChannel)
+	// 如果有 ID，则将其记录到已使用 ID 集合中
 	if dataChannel.ID() != nil {
 		pc.sctpTransport.dataChannelIDsUsed[*dataChannel.ID()] = struct{}{}
 	}
+	// 增加数据通道请求计数
 	pc.sctpTransport.dataChannelsRequested++
 	pc.sctpTransport.lock.Unlock()
 
+	// 3.激活与通知阶段
+	// 如果 SCTP 传输层已连接，则立即打开数据通道
 	// If SCTP already connected open all the channels
 	if pc.sctpTransport.State() == SCTPTransportStateConnected {
 		if err = dataChannel.open(pc.sctpTransport); err != nil {
 			return nil, err
 		}
 	}
-
+	// 触发协商需要事件
 	pc.mu.Lock()
 	pc.onNegotiationNeeded()
 	pc.mu.Unlock()
-
+	// 返回创建的数据通道实例
 	return dataChannel, nil
 }
 

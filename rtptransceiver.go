@@ -17,20 +17,20 @@ import (
 	"github.com/pion/webrtc/v4/internal/fmtp"
 )
 
-// RTPTransceiver represents a combination of an RTPSender and an RTPReceiver that share a common mid.
+// RTPTransceiver 双向的媒体通道管理器，可以同时处理发送和接收，或者只处理其中一种
 type RTPTransceiver struct {
-	mid                    atomic.Value // string
-	sender                 atomic.Value // *RTPSender
-	receiver               atomic.Value // *RTPReceiver
-	direction              atomic.Value // RTPTransceiverDirection
-	currentDirection       atomic.Value // RTPTransceiverDirection
-	currentRemoteDirection atomic.Value // RTPTransceiverDirection
+	mid                    atomic.Value // string - 媒体标识符
+	sender                 atomic.Value // *RTPSender - RTP发送器
+	receiver               atomic.Value // *RTPReceiver - RTP接收器
+	direction              atomic.Value // RTPTransceiverDirection - 转发器传输方向
+	currentDirection       atomic.Value // RTPTransceiverDirection - 当前转发器方向
+	currentRemoteDirection atomic.Value // RTPTransceiverDirection - 当前远程转发器方向
 
-	codecs []RTPCodecParameters // User provided codecs via SetCodecPreferences
+	codecs []RTPCodecParameters // 用户提供的编解码器偏好
 
-	kind RTPCodecType
+	kind RTPCodecType // 媒体类型
 
-	api *API
+	api *API // WebRTC API
 	mu  sync.RWMutex
 }
 
