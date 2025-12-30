@@ -20,44 +20,43 @@ import (
 )
 
 type trackEncoding struct {
-	track TrackLocal
+	track TrackLocal // 本地轨道，用于发送媒体数据
 
-	srtpStream *srtpWriterFuture
+	srtpStream *srtpWriterFuture // SRTP写入流，用于加密RTP数据包
 
-	rtcpInterceptor interceptor.RTCPReader
-	streamInfo      interceptor.StreamInfo
+	rtcpInterceptor interceptor.RTCPReader // RTCP拦截器，用于处理RTCP包
+	streamInfo      interceptor.StreamInfo // 流信息，包含SSRC、编码参数等
 
-	context *baseTrackLocalContext
+	context *baseTrackLocalContext // 轨道本地上下文，包含参数和流信息
 
-	ssrc, ssrcRTX, ssrcFEC SSRC
+	ssrc, ssrcRTX, ssrcFEC SSRC // 主SSRC、RTX重传SSRC、FEC前向纠错SSRC
 }
 
-// RTPSender allows an application to control how a given Track is encoded and transmitted to a remote peer.
+// RTPSender允许应用程序控制如何对给定的Track进行编码和传输到远程对等端
 type RTPSender struct {
-	trackEncodings []*trackEncoding
+	trackEncodings []*trackEncoding // 轨道编码数组，支持多个编码（如同播）
 
-	transport *DTLSTransport
+	transport *DTLSTransport // DTLS 传输，用于加密和解密 RTP 数据
 
-	payloadType PayloadType
-	kind        RTPCodecType
+	payloadType PayloadType  // 有效载荷类型，标识媒体编码格式
+	kind        RTPCodecType // 媒体编解码类型（音频/视频）
 
 	// nolint:godox
-	// TODO(sgotti) remove this when in future we'll avoid replacing
-	// a transceiver sender since we can just check the
-	// transceiver negotiation status
-	negotiated bool
+	// TODO(sgotti) 当将来我们避免替换
+	// 转发器发送者时删除此代码，因为我们可以只检查
+	// 转发器协商状态
+	negotiated bool // 是否已协商，表示是否已完成SDP交换
 
-	// A reference to the associated api object
-	api *API
-	id  string
+	api *API   // API引用，提供媒体引擎和拦截器的访问
+	id  string // RTPSender 的唯一标识符
 
-	rtpTransceiver *RTPTransceiver
+	rtpTransceiver *RTPTransceiver // 关联的RTPTransceiver，用于管理编码器和解码器
 
 	mu                     sync.RWMutex
-	sendCalled, stopCalled chan struct{}
+	sendCalled, stopCalled chan struct{} // 通道，用于通知/标记发送和停止操作
 }
 
-// NewRTPSender constructs a new RTPSender.
+// NewRTPSender 创建一个新的 RTPSender
 func (api *API) NewRTPSender(track TrackLocal, transport *DTLSTransport) (*RTPSender, error) {
 	if track == nil {
 		return nil, errRTPSenderTrackNil
@@ -103,8 +102,7 @@ func (r *RTPSender) setRTPTransceiver(rtpTransceiver *RTPTransceiver) {
 	r.rtpTransceiver = rtpTransceiver
 }
 
-// Transport returns the currently-configured *DTLSTransport or nil
-// if one has not yet been configured.
+// Transport返回当前配置的 *DTLSTransport，如果尚未配置则返回nil
 func (r *RTPSender) Transport() *DTLSTransport {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -112,8 +110,7 @@ func (r *RTPSender) Transport() *DTLSTransport {
 	return r.transport
 }
 
-// GetParameters describes the current configuration for the encoding and
-// transmission of media on the sender's track.
+// GetParameters描述发送者轨道上媒体编码和传输的当前配置
 func (r *RTPSender) GetParameters() RTPSendParameters {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -150,7 +147,7 @@ func (r *RTPSender) GetParameters() RTPSendParameters {
 	return sendParameters
 }
 
-// AddEncoding adds an encoding to RTPSender. Used by simulcast senders.
+// AddEncoding向RTPSender添加编码，用于同播发送者
 func (r *RTPSender) AddEncoding(track TrackLocal) error { //nolint:cyclop
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -215,7 +212,7 @@ func (r *RTPSender) addEncoding(track TrackLocal) {
 	r.trackEncodings = append(r.trackEncodings, trackEncoding)
 }
 
-// Track returns the RTCRtpTransceiver track, or nil.
+// Track返回RTCRtpTransceiver轨道，或nil
 func (r *RTPSender) Track() TrackLocal {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -227,9 +224,8 @@ func (r *RTPSender) Track() TrackLocal {
 	return r.trackEncodings[0].track
 }
 
-// ReplaceTrack replaces the track currently being used as the sender's source with a new TrackLocal.
-// The new track must be of the same media kind (audio, video, etc) and switching the track should not
-// require negotiation.
+// ReplaceTrack 用新的TrackLocal替换当前用作发送者源的轨道
+// 新轨道必须是相同的媒体类型（音频、视频等），切换轨道不应需要协商
 func (r *RTPSender) ReplaceTrack(track TrackLocal) error { //nolint:cyclop
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -298,7 +294,7 @@ func (r *RTPSender) ReplaceTrack(track TrackLocal) error { //nolint:cyclop
 	return nil
 }
 
-// Send Attempts to set the parameters controlling the sending of media.
+// Send尝试设置控制媒体发送的参数
 func (r *RTPSender) Send(parameters RTPSendParameters) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -375,7 +371,7 @@ func (r *RTPSender) Send(parameters RTPSendParameters) error {
 	return nil
 }
 
-// Stop irreversibly stops the RTPSender.
+// Stop 不可逆地停止 RTPSender
 func (r *RTPSender) Stop() error {
 	r.mu.Lock()
 
@@ -407,7 +403,7 @@ func (r *RTPSender) Stop() error {
 	return util.FlattenErrs(errs)
 }
 
-// Read reads incoming RTCP for this RTPSender.
+// Read 读取此 RTPSender 的传入 RTCP
 func (r *RTPSender) Read(b []byte) (n int, a interceptor.Attributes, err error) {
 	select {
 	case <-r.sendCalled:
@@ -417,7 +413,7 @@ func (r *RTPSender) Read(b []byte) (n int, a interceptor.Attributes, err error) 
 	}
 }
 
-// ReadRTCP is a convenience method that wraps Read and unmarshals for you.
+// ReadRTCP 是一个便利方法，它包装了 Read 并为您解包
 func (r *RTPSender) ReadRTCP() ([]rtcp.Packet, interceptor.Attributes, error) {
 	b := make([]byte, r.api.settingEngine.getReceiveMTU())
 	i, attributes, err := r.Read(b)
@@ -433,7 +429,7 @@ func (r *RTPSender) ReadRTCP() ([]rtcp.Packet, interceptor.Attributes, error) {
 	return pkts, attributes, nil
 }
 
-// ReadSimulcast reads incoming RTCP for this RTPSender for given rid.
+// ReadSimulcast 为给定的 rid 读取此 RTPSender 的传入 RTCP
 func (r *RTPSender) ReadSimulcast(b []byte, rid string) (n int, a interceptor.Attributes, err error) {
 	select {
 	case <-r.sendCalled:
@@ -454,7 +450,7 @@ func (r *RTPSender) ReadSimulcast(b []byte, rid string) (n int, a interceptor.At
 	}
 }
 
-// ReadSimulcastRTCP is a convenience method that wraps ReadSimulcast and unmarshal for you.
+// ReadSimulcastRTCP 是一个便利方法，它包装了 ReadSimulcast 并为您解包
 func (r *RTPSender) ReadSimulcastRTCP(rid string) ([]rtcp.Packet, interceptor.Attributes, error) {
 	b := make([]byte, r.api.settingEngine.getReceiveMTU())
 	i, attributes, err := r.ReadSimulcast(b, rid)
@@ -467,8 +463,7 @@ func (r *RTPSender) ReadSimulcastRTCP(rid string) ([]rtcp.Packet, interceptor.At
 	return pkts, attributes, err
 }
 
-// SetReadDeadline sets the deadline for the Read operation.
-// Setting to zero means no deadline.
+// SetReadDeadline 设置 Read 操作的截止时间，设置为零表示没有截止时间
 func (r *RTPSender) SetReadDeadline(t time.Time) error {
 	if r.trackEncodings[0].srtpStream == nil {
 		return errRTPSenderSendNotCalled
@@ -477,8 +472,7 @@ func (r *RTPSender) SetReadDeadline(t time.Time) error {
 	return r.trackEncodings[0].srtpStream.SetReadDeadline(t)
 }
 
-// SetReadDeadlineSimulcast sets the max amount of time the RTCP stream for a given rid
-// will block before returning. 0 is forever.
+// SetReadDeadlineSimulcast设置给定rid的RTCP流，在返回之前将阻塞的最大时间，0表示永远
 func (r *RTPSender) SetReadDeadlineSimulcast(deadline time.Time, rid string) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -492,7 +486,7 @@ func (r *RTPSender) SetReadDeadlineSimulcast(deadline time.Time, rid string) err
 	return fmt.Errorf("%w: %s", errRTPSenderNoTrackForRID, rid)
 }
 
-// hasSent tells if data has been ever sent for this instance.
+// hasSent检查此实例是否曾经发送过数据
 func (r *RTPSender) hasSent() bool {
 	select {
 	case <-r.sendCalled:
@@ -502,7 +496,7 @@ func (r *RTPSender) hasSent() bool {
 	}
 }
 
-// hasStopped tells if stop has been called.
+// hasStopped 检查是否已调用 stop
 func (r *RTPSender) hasStopped() bool {
 	select {
 	case <-r.stopCalled:
@@ -512,8 +506,8 @@ func (r *RTPSender) hasStopped() bool {
 	}
 }
 
-// Set a SSRC for FEC and RTX if MediaEngine has them enabled
-// If the remote doesn't support FEC or RTX we disable locally.
+// 如果MediaEngine启用了FEC和RTX，则设置SSRC
+// 如果远程不支持FEC或RTX，我们在本地禁用
 func (r *RTPSender) configureRTXAndFEC() {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
