@@ -28,7 +28,7 @@ type RTPTransceiver struct {
 
 	codecs []RTPCodecParameters // 用户提供的编解码器偏好
 
-	kind RTPCodecType // 媒体类型
+	kind RTPCodecType // 媒体类型（音频或视频）
 
 	api *API // WebRTC API
 	mu  sync.RWMutex
@@ -50,8 +50,8 @@ func newRTPTransceiver(
 	return t
 }
 
-// SetCodecPreferences sets preferred list of supported codecs
-// if codecs is empty or nil we reset to default from MediaEngine.
+// SetCodecPreferences 设置支持的编解码器首选列表
+// 如果编解码器为空或nil，则重置为MediaEngine中的默认值
 func (t *RTPTransceiver) SetCodecPreferences(codecs []RTPCodecParameters) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -69,7 +69,9 @@ func (t *RTPTransceiver) SetCodecPreferences(codecs []RTPCodecParameters) error 
 	return nil
 }
 
-// getCodecs returns list of supported codecs.
+// getCodecs 返回支持的编解码器列表
+// 如果用户没有设置特定偏好，则使用 MediaEngine 中的默认编解码器
+// 否则，返回用户设置的编解码器，并与 MediaEngine 中的编解码器进行匹配
 func (t *RTPTransceiver) getCodecs() []RTPCodecParameters {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
@@ -93,8 +95,9 @@ func (t *RTPTransceiver) getCodecs() []RTPCodecParameters {
 	return filterUnattachedRTX(filteredCodecs)
 }
 
-// match codecs from remote description, used when remote is offerer and creating a transceiver
-// from remote description with the aim of keeping order of codecs in remote description.
+// setCodecPreferencesFromRemoteDescription
+// 从远程描述匹配编解码器，当远程为提议者且根据远程描述创建转发器时使用
+// 目的是保持远程描述中的编解码器顺序
 func (t *RTPTransceiver) setCodecPreferencesFromRemoteDescription(media *sdp.MediaDescription) { //nolint:cyclop
 	remoteCodecs, err := codecsFromMediaDescription(media)
 	if err != nil {
@@ -183,7 +186,7 @@ func (t *RTPTransceiver) setCodecPreferencesFromRemoteDescription(media *sdp.Med
 	_ = t.SetCodecPreferences(filteredCodecs)
 }
 
-// Sender returns the RTPTransceiver's RTPSender if it has one.
+// Sender 返回RTP转发器的RTP发送器（如果有的话）。
 func (t *RTPTransceiver) Sender() *RTPSender {
 	if v, ok := t.sender.Load().(*RTPSender); ok {
 		return v
@@ -192,13 +195,12 @@ func (t *RTPTransceiver) Sender() *RTPSender {
 	return nil
 }
 
-// SetSender sets the RTPSender and Track to current transceiver.
+// SetSender 将RTP发送器和轨道设置到当前转发器。
 func (t *RTPTransceiver) SetSender(s *RTPSender, track TrackLocal) error {
 	t.setSender(s)
 
 	return t.setSendingTrack(track)
 }
-
 func (t *RTPTransceiver) setSender(s *RTPSender) {
 	if s != nil {
 		s.setRTPTransceiver(t)
@@ -211,7 +213,7 @@ func (t *RTPTransceiver) setSender(s *RTPSender) {
 	t.sender.Store(s)
 }
 
-// Receiver returns the RTPTransceiver's RTPReceiver if it has one.
+// Receiver 返回RTP转发器的RTP接收器（如果有的话）
 func (t *RTPTransceiver) Receiver() *RTPReceiver {
 	if v, ok := t.receiver.Load().(*RTPReceiver); ok {
 		return v
@@ -220,7 +222,8 @@ func (t *RTPTransceiver) Receiver() *RTPReceiver {
 	return nil
 }
 
-// SetMid sets the RTPTransceiver's mid. If it was already set, will return an error.
+// SetMid 设置RTP转发器的mid
+// 如果已经设置，则返回错误
 func (t *RTPTransceiver) SetMid(mid string) error {
 	if currentMid := t.Mid(); currentMid != "" {
 		return fmt.Errorf("%w: %s to %s", errRTPTransceiverCannotChangeMid, currentMid, mid)
@@ -230,7 +233,8 @@ func (t *RTPTransceiver) SetMid(mid string) error {
 	return nil
 }
 
-// Mid gets the Transceiver's mid value. When not already set, this value will be set in CreateOffer or CreateAnswer.
+// Mid 获取转发器的mid值
+// 如果尚未设置，此值将在CreateOffer或CreateAnswer中设置
 func (t *RTPTransceiver) Mid() string {
 	if v, ok := t.mid.Load().(string); ok {
 		return v
@@ -239,12 +243,12 @@ func (t *RTPTransceiver) Mid() string {
 	return ""
 }
 
-// Kind returns RTPTransceiver's kind.
+// Kind 返回RTP转发器的类型（音频或视频）
 func (t *RTPTransceiver) Kind() RTPCodecType {
 	return t.kind
 }
 
-// Direction returns the RTPTransceiver's current direction.
+// Direction 返回RTP转发器的当前方向
 func (t *RTPTransceiver) Direction() RTPTransceiverDirection {
 	if direction, ok := t.direction.Load().(RTPTransceiverDirection); ok {
 		return direction
@@ -253,7 +257,8 @@ func (t *RTPTransceiver) Direction() RTPTransceiverDirection {
 	return RTPTransceiverDirection(0)
 }
 
-// Stop irreversibly stops the RTPTransceiver.
+// Stop 不可逆地停止RTP转发器
+// 该方法会停止相关的发送器和接收器，并将方向设置为非活动状态
 func (t *RTPTransceiver) Stop() error {
 	if sender := t.Sender(); sender != nil {
 		if err := sender.Stop(); err != nil {
@@ -312,6 +317,13 @@ func (t *RTPTransceiver) getCurrentRemoteDirection() RTPTransceiverDirection {
 	return RTPTransceiverDirectionUnknown
 }
 
+// setSendingTrack 设置发送轨道，并根据轨道状态和当前方向自动调整转发器的方向
+/*
+如果有轨道且当前方向是 recvonly → 变为 sendrecv
+如果有轨道且当前方向是 inactive → 变为 sendonly
+如果无轨道且当前方向是 sendrecv → 变为 recvonly
+如果无轨道且当前方向是 sendonly → 变为 inactive
+*/
 func (t *RTPTransceiver) setSendingTrack(track TrackLocal) error { //nolint:cyclop
 	if err := t.Sender().ReplaceTrack(track); err != nil {
 		return err
@@ -342,6 +354,13 @@ func (t *RTPTransceiver) setSendingTrack(track TrackLocal) error { //nolint:cycl
 	return nil
 }
 
+// isSendAllowed 检查是否允许发送特定类型的媒体
+/*
+媒体类型是否匹配
+是否已有发送器
+当前方向是否允许发送
+远程方向是否允许发送
+*/
 func (t *RTPTransceiver) isSendAllowed(kind RTPCodecType) bool {
 	if t.kind != kind || t.Sender() != nil {
 		return false

@@ -13,10 +13,11 @@ import (
 type stateChangeOp int
 
 const (
-	stateChangeOpSetLocal stateChangeOp = iota + 1
-	stateChangeOpSetRemote
+	stateChangeOpSetLocal  stateChangeOp = iota + 1 // 本地描述设置操作
+	stateChangeOpSetRemote                          // 远程描述设置操作
 )
 
+// 将状态变更操作类型转换为字符串表示
 func (op stateChangeOp) String() string {
 	switch op {
 	case stateChangeOpSetLocal:
@@ -28,50 +29,46 @@ func (op stateChangeOp) String() string {
 	}
 }
 
-// SignalingState indicates the signaling state of the offer/answer process.
+// SignalingState 表示 offer/answer 过程的信令状态
 type SignalingState int32
 
 const (
-	// SignalingStateUnknown is the enum's zero-value.
+	// SignalingStateUnknown 是枚举的零值，表示未知状态
 	SignalingStateUnknown SignalingState = iota
 
-	// SignalingStateStable indicates there is no offer/answer exchange in
-	// progress. This is also the initial state, in which case the local and
-	// remote descriptions are nil.
+	// SignalingStateStable 表示当前没有正在进行的 offer/answer 交换
+	// 这也是初始状态，在这种情况下，本地和远程描述都为 nil
 	SignalingStateStable
 
-	// SignalingStateHaveLocalOffer indicates that a local description, of
-	// type "offer", has been successfully applied.
+	// SignalingStateHaveLocalOffer 表示已成功应用了类型为 "offer" 的本地描述
 	SignalingStateHaveLocalOffer
 
-	// SignalingStateHaveRemoteOffer indicates that a remote description, of
-	// type "offer", has been successfully applied.
+	// SignalingStateHaveRemoteOffer 表示已成功应用了类型为 "offer" 的远程描述
 	SignalingStateHaveRemoteOffer
 
-	// SignalingStateHaveLocalPranswer indicates that a remote description
-	// of type "offer" has been successfully applied and a local description
-	// of type "pranswer" has been successfully applied.
+	// SignalingStateHaveLocalPranswer 表示已成功应用了类型为 "offer" 的远程描述，
+	// 并且已成功应用了类型为 "pranswer" 的本地描述（本地预应答）
 	SignalingStateHaveLocalPranswer
 
-	// SignalingStateHaveRemotePranswer indicates that a local description
-	// of type "offer" has been successfully applied and a remote description
-	// of type "pranswer" has been successfully applied.
+	// SignalingStateHaveRemotePranswer 表示已成功应用了类型为 "offer" 的本地描述，
+	// 并且已成功应用了类型为 "pranswer" 的远程描述（远程预应答）
 	SignalingStateHaveRemotePranswer
 
-	// SignalingStateClosed indicates The PeerConnection has been closed.
+	// SignalingStateClosed 表示 PeerConnection 已关闭
 	SignalingStateClosed
 )
 
-// This is done this way because of a linter.
+// 这样做是因为代码检查工具的要求
 const (
-	signalingStateStableStr             = "stable"
-	signalingStateHaveLocalOfferStr     = "have-local-offer"
-	signalingStateHaveRemoteOfferStr    = "have-remote-offer"
-	signalingStateHaveLocalPranswerStr  = "have-local-pranswer"
-	signalingStateHaveRemotePranswerStr = "have-remote-pranswer"
-	signalingStateClosedStr             = "closed"
+	signalingStateStableStr             = "stable"               // 稳定
+	signalingStateHaveLocalOfferStr     = "have-local-offer"     // 拥有本地offer
+	signalingStateHaveRemoteOfferStr    = "have-remote-offer"    // 拥有远程offe
+	signalingStateHaveLocalPranswerStr  = "have-local-pranswer"  // 拥有本地预应答
+	signalingStateHaveRemotePranswerStr = "have-remote-pranswer" // 拥有远程预应答
+	signalingStateClosedStr             = "closed"               // 已关闭
 )
 
+// 根据字符串表示创建对应的 SignalingState 枚举值
 func newSignalingState(raw string) SignalingState {
 	switch raw {
 	case signalingStateStableStr:
@@ -91,6 +88,7 @@ func newSignalingState(raw string) SignalingState {
 	}
 }
 
+// 将 SignalingState 枚举值转换为对应的字符串表示
 func (t SignalingState) String() string {
 	switch t {
 	case SignalingStateStable:
@@ -110,17 +108,20 @@ func (t SignalingState) String() string {
 	}
 }
 
-// Get thread safe read value.
 func (t *SignalingState) Get() SignalingState {
 	return SignalingState(atomic.LoadInt32((*int32)(t)))
 }
-
-// Set thread safe write value.
 func (t *SignalingState) Set(state SignalingState) {
 	atomic.StoreInt32((*int32)(t), int32(state))
 }
 
-//nolint:gocognit,cyclop
+// checkNextSignalingState 状态转换验证函数
+/*
+cur: 当前状态
+next: 下一状态
+op: 状态变更操作类型
+sdpType: SDP 类型（offer, answer, pranswer, rollback）
+*/
 func checkNextSignalingState(cur, next SignalingState, op stateChangeOp, sdpType SDPType) (SignalingState, error) {
 	// Special case for rollbacks
 	if sdpType == SDPTypeRollback && cur == SignalingStateStable {

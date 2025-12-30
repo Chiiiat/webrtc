@@ -12,10 +12,10 @@
 Model {     
 
     ✅ ./peerconnection.go   
-    ./signalingstate.go   
+    ✅ ./signalingstate.go   
 
     Media:  
-        ./rtptransceiver.go   
+        ✅ ./rtptransceiver.go   
         ./rtpsender.go / ./rtpreceiver.go   
         ./track_local.go / ./track_remote.go    
         ./mediaengine.go  
