@@ -20,7 +20,7 @@ import (
 
 const sctpMaxChannels = uint16(65535)
 
-// SCTPTransport provides details about the SCTP transport.
+// SCTPTransport 提供关于 SCTP 传输的详细信息
 type SCTPTransport struct {
 	lock sync.RWMutex
 
@@ -57,9 +57,8 @@ type SCTPTransport struct {
 	log logging.LeveledLogger
 }
 
-// NewSCTPTransport creates a new SCTPTransport.
-// This constructor is part of the ORTC API. It is not
-// meant to be used together with the basic WebRTC API.
+// NewSCTPTransport 创建一个新的 SCTPTransport
+// 此构造函数是 ORTC API 的一部分，不应与基本 WebRTC API 一起使用
 func (api *API) NewSCTPTransport(dtls *DTLSTransport) *SCTPTransport {
 	res := &SCTPTransport{
 		dtlsTransport:      dtls,
@@ -74,7 +73,7 @@ func (api *API) NewSCTPTransport(dtls *DTLSTransport) *SCTPTransport {
 	return res
 }
 
-// Transport returns the DTLSTransport instance the SCTPTransport is sending over.
+// Transport 返回 SCTPTransport 发送所使用的 DTLSTransport 实例
 func (r *SCTPTransport) Transport() *DTLSTransport {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
@@ -82,7 +81,7 @@ func (r *SCTPTransport) Transport() *DTLSTransport {
 	return r.dtlsTransport
 }
 
-// GetCapabilities returns the SCTPCapabilities of the SCTPTransport.
+// GetCapabilities 返回 SCTPTransport 的 SCTPCapabilities
 func (r *SCTPTransport) GetCapabilities() SCTPCapabilities {
 	var maxMessageSize uint32
 	if a := r.association(); a != nil {
@@ -94,9 +93,7 @@ func (r *SCTPTransport) GetCapabilities() SCTPCapabilities {
 	}
 }
 
-// Start the SCTPTransport. Since both local and remote parties must mutually
-// create an SCTPTransport, SCTP SO (Simultaneous Open) is used to establish
-// a connection over SCTP.
+// 启动 SCTPTransport 由于本地和远程双方都必须相互创建 SCTPTransport，因此使用 SCTP SO（同时打开）通过 SCTP 建立连接
 func (r *SCTPTransport) Start(capabilities SCTPCapabilities) error {
 	if r.isStarted {
 		return nil
@@ -157,7 +154,7 @@ func (r *SCTPTransport) Start(capabilities SCTPCapabilities) error {
 	return nil
 }
 
-// Stop stops the SCTPTransport.
+// Stop 停止 SCTPTransport
 func (r *SCTPTransport) Stop() error {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -283,7 +280,7 @@ ACCEPT:
 	}
 }
 
-// OnError sets an event handler which is invoked when the SCTP Association errors.
+// OnError 设置当 SCTP 关联发生错误时调用的事件处理程序
 func (r *SCTPTransport) OnError(f func(err error)) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -300,7 +297,7 @@ func (r *SCTPTransport) onError(err error) {
 	}
 }
 
-// OnClose sets an event handler which is invoked when the SCTP Association closes.
+// OnClose 设置当 SCTP 关联关闭时调用的事件处理程序
 func (r *SCTPTransport) OnClose(f func(err error)) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -317,16 +314,14 @@ func (r *SCTPTransport) onClose(err error) {
 	}
 }
 
-// OnDataChannel sets an event handler which is invoked when a data
-// channel message arrives from a remote peer.
+// OnDataChannel 设置当数据通道消息从远程对等方到达时调用的事件处理程序
 func (r *SCTPTransport) OnDataChannel(f func(*DataChannel)) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 	r.onDataChannelHandler = f
 }
 
-// OnDataChannelOpened sets an event handler which is invoked when a data
-// channel is opened.
+// OnDataChannelOpened 设置当数据通道打开时调用的事件处理程序
 func (r *SCTPTransport) OnDataChannelOpened(f func(*DataChannel)) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -369,7 +364,7 @@ func (r *SCTPTransport) updateMaxChannels() {
 	r.maxChannels = &val
 }
 
-// MaxChannels is the maximum number of RTCDataChannels that can be open simultaneously.
+// MaxChannels 是可以同时打开的 RTCDataChannels 的最大数量
 func (r *SCTPTransport) MaxChannels() uint16 {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -381,7 +376,7 @@ func (r *SCTPTransport) MaxChannels() uint16 {
 	return *r.maxChannels
 }
 
-// State returns the current state of the SCTPTransport.
+// State 返回 SCTPTransport 的当前状态
 func (r *SCTPTransport) State() SCTPTransportState {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
@@ -446,7 +441,7 @@ func (r *SCTPTransport) association() *sctp.Association {
 	return association
 }
 
-// BufferedAmount returns total amount (in bytes) of currently buffered user data.
+// BufferedAmount 返回当前缓冲的用户数据的总量（以字节为单位）
 func (r *SCTPTransport) BufferedAmount() int {
 	r.lock.Lock()
 	defer r.lock.Unlock()

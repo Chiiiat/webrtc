@@ -3,7 +3,7 @@
 
 package webrtc
 
-// SCTPCapabilities indicates the capabilities of the SCTPTransport.
+// SCTPCapabilities 表示 SCTPTransport 的功能
 type SCTPCapabilities struct {
 	MaxMessageSize uint32 `json:"maxMessageSize"`
 }

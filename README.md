@@ -13,32 +13,20 @@ Model {
 
     ✅ ./peerconnection.go   
     ✅ ./signalingstate.go   
-    总结：{
-
-    }   
 
     Media:  
         ✅ ./rtptransceiver.go   
         ✅ ./rtpsender.go / ./rtpreceiver.go   
         ✅ ./track_local.go / ./track_remote.go    
         ✅ ./mediaengine.go  
-        总结：{
-
-    }   
 
     DataChannel:    
         ✅ ./datachannel.go  
         ✅ ./datachannelinit.go, ./datachannelparameters.go, ./datachannelstate.go   
-        总结：{
-
-    }   
 
     SDP:    
         ✅ ./sessiondescription.go   
-        ✅ ./sdp.go    
-        总结：{
-
-    }     
+        ✅ ./sdp.go        
 }
  
 Transport {
@@ -47,29 +35,17 @@ Transport {
         ✅ ./icegatherer.go    
         ✅ ./icetransport.go   
         ✅ ./icecandidate.go / ./icecandidatepair.go / ./iceserver.go 
-        总结：{
-
-    }   
 
     DTLS + SRTP:    
         ./dtlstransport.go  
-        ./dtlsparameters.go / ./dtlsrole.go / ./dtlstransportstate.go   
-        总结：{
-
-    }   
+        ./dtlsparameters.go / ./dtlsrole.go / ./dtlstransportstate.go             
 
     SCTP:   
         ./sctptransport.go    
         ./sctpcapabilities.go / ./sctptransportstate.go
-        总结：{
-
-    }   
 
     RTP / RTCP / Code / Decode: 
         ./rtpcodec.go、./rtpcapabilities.go 
         ./rtpsendparameters.go / ./rtpreceiveparameters.go
-        总结：{
-
-    }   
 }
     

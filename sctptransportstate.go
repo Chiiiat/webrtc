@@ -3,26 +3,22 @@
 
 package webrtc
 
-// SCTPTransportState indicates the state of the SCTP transport.
+// SCTPTransportState 表示 SCTP 传输的状态
 type SCTPTransportState int
 
 const (
-	// SCTPTransportStateUnknown is the enum's zero-value.
+	// SCTPTransportStateUnknown 是枚举的零值
 	SCTPTransportStateUnknown SCTPTransportState = iota
 
-	// SCTPTransportStateConnecting indicates the SCTPTransport is in the
-	// process of negotiating an association. This is the initial state of the
-	// SCTPTransportState when an SCTPTransport is created.
+	// SCTPTransportStateConnecting 表示 SCTPTransport 正在协商关联
+	// 这是创建 SCTPTransport 时 SCTPTransportState 的初始状态
 	SCTPTransportStateConnecting
 
-	// SCTPTransportStateConnected indicates the negotiation of an
-	// association is completed.
+	// SCTPTransportStateConnected 表示关联协商已完成
 	SCTPTransportStateConnected
 
-	// SCTPTransportStateClosed indicates a SHUTDOWN or ABORT chunk is
-	// received or when the SCTP association has been closed intentionally,
-	// such as by closing the peer connection or applying a remote description
-	// that rejects data or changes the SCTP port.
+	// SCTPTransportStateClosed 表示已收到 SHUTDOWN 或 ABORT 块
+	// 或 SCTP 关联已被有意关闭，例如通过关闭对等连接或应用拒绝数据或更改 SCTP 端口的远程描述
 	SCTPTransportStateClosed
 )
 
