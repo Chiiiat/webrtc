@@ -21,9 +21,9 @@ import (
 
 var errSCTPNotEstablished = errors.New("SCTP not established")
 
-// DataChannel represents a WebRTC DataChannel
-// The DataChannel interface represents a network channel
-// which can be used for bidirectional peer-to-peer transfers of arbitrary data.
+// DataChannel表示一个WebRTC数据通道
+// DataChannel interface 表示一个网络通道
+// 可用于任意数据的双向对等传输
 type DataChannel struct {
 	mu sync.RWMutex
 
@@ -41,12 +41,11 @@ type DataChannel struct {
 	readLoopActive             chan struct{}
 	isGracefulClosed           bool
 
-	// The binaryType represents attribute MUST, on getting, return the value to
-	// which it was last set. On setting, if the new value is either the string
-	// "blob" or the string "arraybuffer", then set the IDL attribute to this
-	// new value. Otherwise, throw a SyntaxError. When an DataChannel object
-	// is created, the binaryType attribute MUST be initialized to the string
-	// "blob". This attribute controls how binary data is exposed to scripts.
+	// binaryType表示属性在获取时必须返回上次设置的值。在设置时，如果新值是字符串
+	// "blob"或字符串"arraybuffer"，则将IDL属性设置为该
+	// 新值。否则，抛出SyntaxError。创建DataChannel对象时
+	// binaryType属性必须初始化为字符串
+	// "blob"。此属性控制二进制数据如何暴露给脚本
 	// binaryType                 string
 
 	onMessageHandler    func(DataChannelMessage)
@@ -66,9 +65,9 @@ type DataChannel struct {
 	log logging.LeveledLogger
 }
 
-// NewDataChannel creates a new DataChannel.
-// This constructor is part of the ORTC API. It is not
-// meant to be used together with the basic WebRTC API.
+// NewDataChannel创建一个新的数据通道
+// 此构造函数是ORTC API的一部分，它不
+// 应与基本WebRTC API一起使用
 func (api *API) NewDataChannel(transport *SCTPTransport, params *DataChannelParameters) (*DataChannel, error) {
 	d, err := api.newDataChannel(params, nil, api.settingEngine.LoggerFactory.NewLogger("ortc"))
 	if err != nil {
@@ -83,8 +82,8 @@ func (api *API) NewDataChannel(transport *SCTPTransport, params *DataChannelPara
 	return d, nil
 }
 
-// newDataChannel is an internal constructor for the data channel used to
-// create the DataChannel object before the networking is set up.
+// newDataChannel是数据通道的内部构造函数，用于
+// 在网络设置之前创建DataChannel对象
 func (api *API) newDataChannel(
 	params *DataChannelParameters,
 	sctpTransport *SCTPTransport,
@@ -114,7 +113,7 @@ func (api *API) newDataChannel(
 	return dataChannel, nil
 }
 
-// open opens the datachannel over the sctp transport.
+// open在SCTP传输上打开数据通道
 func (d *DataChannel) open(sctpTransport *SCTPTransport) error { //nolint:cyclop
 	association := sctpTransport.association()
 	if association == nil {
@@ -194,7 +193,7 @@ func (d *DataChannel) open(sctpTransport *SCTPTransport) error { //nolint:cyclop
 	return nil
 }
 
-// Transport returns the SCTPTransport instance the DataChannel is sending over.
+// Transport返回DataChannel正在其上发送的SCTPTransport实例
 func (d *DataChannel) Transport() *SCTPTransport {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -202,8 +201,8 @@ func (d *DataChannel) Transport() *SCTPTransport {
 	return d.sctpTransport
 }
 
-// After onOpen is complete check that the user called detach
-// and provide an error message if the call was missed.
+// onOpen完成后检查用户是否调用了detach
+// 如果调用被遗漏则提供错误消息
 func (d *DataChannel) checkDetachAfterOpen() {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -213,8 +212,8 @@ func (d *DataChannel) checkDetachAfterOpen() {
 	}
 }
 
-// OnOpen sets an event handler which is invoked when
-// the underlying data transport has been established (or re-established).
+// OnOpen设置一个事件处理器，当
+// 底层数据传输已建立（或重新建立）时调用
 func (d *DataChannel) OnOpen(f func()) {
 	d.mu.Lock()
 	d.openHandlerOnce = sync.Once{}
@@ -248,8 +247,8 @@ func (d *DataChannel) onOpen() {
 	}
 }
 
-// OnDial sets an event handler which is invoked when the
-// peer has been dialed, but before said peer has responded.
+// OnDial设置一个事件处理器，当
+// 对等方已拨号但在该对等方响应之前调用
 func (d *DataChannel) OnDial(f func()) {
 	d.mu.Lock()
 	d.dialHandlerOnce = sync.Once{}
@@ -277,12 +276,12 @@ func (d *DataChannel) onDial() {
 	}
 }
 
-// OnClose sets an event handler which is invoked when
-// the underlying data transport has been closed.
-// Note: Due to backwards compatibility, there is a chance that
-// OnClose can be called, even if the GracefulClose is used.
-// If this is the case for you, you can deregister OnClose
-// prior to GracefulClose.
+// OnClose设置一个事件处理器，当
+// 底层数据传输已关闭时调用
+// 注意：由于向后兼容性，有可能
+// OnClose会被调用即使使用了GracefulClose
+// 如果这对您是这样，您可以在GracefulClose之前
+// 注销OnClose
 func (d *DataChannel) OnClose(f func()) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -299,12 +298,12 @@ func (d *DataChannel) onClose() {
 	}
 }
 
-// OnMessage sets an event handler which is invoked on a binary
-// message arrival over the sctp transport from a remote peer.
-// OnMessage can currently receive messages up to 16384 bytes
-// in size. Check out the detach API if you want to use larger
-// message sizes. Note that browser support for larger messages
-// is also limited.
+// OnMessage设置一个事件处理器，当从远程对等方通过sctp传输
+// 接收到二进制消息时调用
+// OnMessage当前可接收最多16384字节
+// 大小的消息。如果您想使用更大的
+// 消息大小请查看detach API。请注意浏览器对更大消息
+// 的支持也有限
 func (d *DataChannel) OnMessage(f func(msg DataChannelMessage)) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -372,8 +371,8 @@ func (d *DataChannel) handleOpen(dc *datachannel.DataChannel, isRemote, isAlread
 	}
 }
 
-// OnError sets an event handler which is invoked when
-// the underlying data transport cannot be read.
+// OnError设置一个事件处理器，当
+// 底层数据传输无法读取时调用
 func (d *DataChannel) OnError(f func(err error)) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -436,7 +435,7 @@ func (d *DataChannel) readLoop() {
 	}
 }
 
-// Send sends the binary message to the DataChannel peer.
+// Send 向DataChannel对等方发送二进制消息
 func (d *DataChannel) Send(data []byte) error {
 	err := d.ensureOpen()
 	if err != nil {
@@ -448,7 +447,7 @@ func (d *DataChannel) Send(data []byte) error {
 	return err
 }
 
-// SendText sends the text message to the DataChannel peer.
+// SendText 向DataChannel对等方发送文本消息
 func (d *DataChannel) SendText(s string) error {
 	err := d.ensureOpen()
 	if err != nil {
@@ -470,23 +469,23 @@ func (d *DataChannel) ensureOpen() error {
 	return nil
 }
 
-// Detach allows you to detach the underlying datachannel.
-// This provides an idiomatic API to work with
-// (`io.ReadWriteCloser` with its `.Read()` and `.Write()` methods,
-// as opposed to `.Send()` and `.OnMessage`),
-// however it disables the OnMessage callback.
-// Before calling Detach you have to enable this behavior by calling
-// webrtc.DetachDataChannels(). Combining detached and normal data channels
-// is not supported.
-// Please refer to the data-channels-detach example and the
-// pion/datachannel documentation for the correct way to handle the
-// resulting DataChannel object.
+// Detach 允许您分离底层数据通道
+// 这提供了一个惯用的API来工作
+// （`io.ReadWriteCloser`及其`.Read()`和`.Write()`方法
+// 而不是`.Send()`和`.OnMessage`
+// 然而它禁用了OnMessage回调
+// 调用Detach之前您必须通过调用
+// webrtc.DetachDataChannels()启用此行为。组合分离和正常数据通道
+// 不被支持
+// 请参阅data-channels-detach示例和
+// pion/datachannel文档了解正确处理
+// 生成的DataChannel对象的方法
 func (d *DataChannel) Detach() (datachannel.ReadWriteCloser, error) {
 	return d.DetachWithDeadline()
 }
 
-// DetachWithDeadline allows you to detach the underlying datachannel.
-// It is the same as Detach but returns a ReadWriteCloserDeadliner.
+// DetachWithDeadline允许您分离底层数据通道
+// 它与Detach相同但返回一个ReadWriteCloserDeadliner
 func (d *DataChannel) DetachWithDeadline() (datachannel.ReadWriteCloserDeadliner, error) {
 	d.mu.Lock()
 
@@ -528,26 +527,26 @@ func (d *DataChannel) DetachWithDeadline() (datachannel.ReadWriteCloserDeadliner
 	return dataChannel, nil
 }
 
-// Close Closes the DataChannel. It may be called regardless of whether
-// the DataChannel object was created by this peer or the remote peer.
+// Close关闭DataChannel，无论
+// DataChannel对象是由此对等方还是远程对等方创建都可以调用
 func (d *DataChannel) Close() error {
 	return d.close(false)
 }
 
-// GracefulClose Closes the DataChannel. It may be called regardless of whether
-// the DataChannel object was created by this peer or the remote peer. It also waits
-// for any goroutines it started to complete. This is only safe to call outside of
-// DataChannel callbacks or if in a callback, in its own goroutine.
+// GracefulClose 关闭DataChannel，无论
+// DataChannel对象是由此对等方还是远程对等方创建都可以调用
+// 在其自己的goroutine中，它还会等待它启动的任何goroutine完成，这仅在
+// DataChannel回调之外调用是安全的或如果在回调中
 func (d *DataChannel) GracefulClose() error {
 	return d.close(true)
 }
 
-// Normally, close only stops writes from happening, so graceful=true
-// will wait for reads to be finished based on underlying SCTP association
-// closure or a SCTP reset stream from the other side. This is safe to call
-// with graceful=true after tearing down a PeerConnection but not
-// necessarily before. For example, if you used a vnet and dropped all packets
-// right before closing the DataChannel, you'd need never see a reset stream.
+// 通常close只停止写入发生，所以graceful=true
+// 将基于底层SCTP关联等待读取完成
+// 关闭或来自另一侧的SCTP重置流。这在拆除PeerConnection后
+// 用graceful=true调用是安全的但不一定
+// 在此之前。例如，如果您使用了vnet并在关闭DataChannel前
+// 丢弃了所有数据包，您可能永远不会看到重置流
 func (d *DataChannel) close(shouldGracefullyClose bool) error {
 	d.mu.Lock()
 	d.isGracefulClosed = true
@@ -572,9 +571,9 @@ func (d *DataChannel) close(shouldGracefullyClose bool) error {
 	return d.dataChannel.Close()
 }
 
-// Label represents a label that can be used to distinguish this
-// DataChannel object from other DataChannel objects. Scripts are
-// allowed to create multiple DataChannel objects with the same label.
+// Label表示可用于区分此
+// DataChannel对象与其他DataChannel对象的标签
+// 脚本被允许创建具有相同标签的多个DataChannel对象
 func (d *DataChannel) Label() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -582,8 +581,8 @@ func (d *DataChannel) Label() string {
 	return d.label
 }
 
-// Ordered returns true if the DataChannel is ordered, and false if
-// out-of-order delivery is allowed.
+// Ordered如果DataChannel是有序的则返回true，如果
+// 允许无序交付则返回false
 func (d *DataChannel) Ordered() bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -591,8 +590,8 @@ func (d *DataChannel) Ordered() bool {
 	return d.ordered
 }
 
-// MaxPacketLifeTime represents the length of the time window (msec) during
-// which transmissions and retransmissions may occur in unreliable mode.
+// MaxPacketLifeTime表示时间窗口的长度（毫秒）在
+// 不可靠模式下可能发生传输和重传
 func (d *DataChannel) MaxPacketLifeTime() *uint16 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -600,8 +599,8 @@ func (d *DataChannel) MaxPacketLifeTime() *uint16 {
 	return d.maxPacketLifeTime
 }
 
-// MaxRetransmits represents the maximum number of retransmissions that are
-// attempted in unreliable mode.
+// MaxRetransmits表示在
+// 不可靠模式下尝试的最大重传次数
 func (d *DataChannel) MaxRetransmits() *uint16 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -609,8 +608,8 @@ func (d *DataChannel) MaxRetransmits() *uint16 {
 	return d.maxRetransmits
 }
 
-// Protocol represents the name of the sub-protocol used with this
-// DataChannel.
+// Protocol表示与此
+// DataChannel一起使用的子协议名称
 func (d *DataChannel) Protocol() string {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -618,8 +617,8 @@ func (d *DataChannel) Protocol() string {
 	return d.protocol
 }
 
-// Negotiated represents whether this DataChannel was negotiated by the
-// application (true), or not (false).
+// Negotiated表示此DataChannel是否由
+// 应用程序协商（true）或没有（false）
 func (d *DataChannel) Negotiated() bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -627,12 +626,11 @@ func (d *DataChannel) Negotiated() bool {
 	return d.negotiated
 }
 
-// ID represents the ID for this DataChannel. The value is initially
-// null, which is what will be returned if the ID was not provided at
-// channel creation time, and the DTLS role of the SCTP transport has not
-// yet been negotiated. Otherwise, it will return the ID that was either
-// selected by the script or generated. After the ID is set to a non-null
-// value, it will not change.
+// ID表示此DataChannel的ID，值最初是
+// null，如果在通道创建时未提供ID，且SCTP传输的DTLS角色尚未
+// 协商则将返回此值
+// 否则，它将返回由脚本选择或生成的ID，ID设置为非null
+// 值后将不会更改
 func (d *DataChannel) ID() *uint16 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -640,7 +638,7 @@ func (d *DataChannel) ID() *uint16 {
 	return d.id
 }
 
-// ReadyState represents the state of the DataChannel object.
+// ReadyState表示DataChannel对象的状态
 func (d *DataChannel) ReadyState() DataChannelState {
 	if v, ok := d.readyState.Load().(DataChannelState); ok {
 		return v
@@ -649,16 +647,16 @@ func (d *DataChannel) ReadyState() DataChannelState {
 	return DataChannelState(0)
 }
 
-// BufferedAmount represents the number of bytes of application data
-// (UTF-8 text and binary data) that have been queued using send(). Even
-// though the data transmission can occur in parallel, the returned value
-// MUST NOT be decreased before the current task yielded back to the event
-// loop to prevent race conditions. The value does not include framing
-// overhead incurred by the protocol, or buffering done by the operating
-// system or network hardware. The value of BufferedAmount slot will only
-// increase with each call to the send() method as long as the ReadyState is
-// open; however, BufferedAmount does not reset to zero once the channel
-// closes.
+// BufferedAmount表示使用send()排队的应用程序数据字节数
+// （UTF-8文本和二进制数据）
+// 即使数据传输可以并行发生，返回值
+// 在当前任务交还给事件循环之前不得减少
+// 以防止竞态条件。该值不包括协议
+// 产生的帧开销或操作系统或网络硬件
+// 执行的缓冲。只要ReadyState为
+// 开放，BufferedAmount槽的值只会随每次调用send()方法而
+// 增加；然而，通道
+// 关闭后BufferedAmount不会重置为零
 func (d *DataChannel) BufferedAmount() uint64 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -670,12 +668,14 @@ func (d *DataChannel) BufferedAmount() uint64 {
 	return d.dataChannel.BufferedAmount()
 }
 
-// BufferedAmountLowThreshold represents the threshold at which the
-// bufferedAmount is considered to be low. When the bufferedAmount decreases
-// from above this threshold to equal or below it, the bufferedamountlow
-// event fires. BufferedAmountLowThreshold is initially zero on each new
-// DataChannel, but the application may change its value at any time.
-// The threshold is set to 0 by default.
+// BufferedAmountLowThreshold表示
+// bufferedAmount被认为较低的阈值
+// 当bufferedAmount从
+// 高于此阈值减少到等于或低于它时，bufferedamountlow
+// 事件触发
+// 每个新DataChannel上的BufferedAmountLowThreshold最初为零，但应用程序可以在任何时间
+// 更改其值
+// 阈值默认设置为0
 func (d *DataChannel) BufferedAmountLowThreshold() uint64 {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
@@ -687,8 +687,8 @@ func (d *DataChannel) BufferedAmountLowThreshold() uint64 {
 	return d.dataChannel.BufferedAmountLowThreshold()
 }
 
-// SetBufferedAmountLowThreshold is used to update the threshold.
-// See BufferedAmountLowThreshold().
+// SetBufferedAmountLowThreshold用于更新阈值
+// 参见BufferedAmountLowThreshold()
 func (d *DataChannel) SetBufferedAmountLowThreshold(th uint64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -700,9 +700,9 @@ func (d *DataChannel) SetBufferedAmountLowThreshold(th uint64) {
 	}
 }
 
-// OnBufferedAmountLow sets an event handler which is invoked when
-// the number of bytes of outgoing data becomes lower than or equal to the
-// BufferedAmountLowThreshold.
+// OnBufferedAmountLow设置一个事件处理器当
+// 出站数据字节数低于或等于
+// BufferedAmountLowThreshold时调用
 func (d *DataChannel) OnBufferedAmountLow(f func()) {
 	d.mu.Lock()
 	defer d.mu.Unlock()

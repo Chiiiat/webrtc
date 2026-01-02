@@ -20,18 +20,18 @@ import (
 	"github.com/pion/webrtc/v4/internal/fmtp"
 )
 
+// mediaEngineHeaderExtension RTP 头扩展（如 mid、abs-send-time 等）
 type mediaEngineHeaderExtension struct {
 	uri              string
 	isAudio, isVideo bool
 
-	// If set only Transceivers of this direction are allowed
+	// 如果设置了该字段，则只有该方向的 Transceiver 才被允许
 	allowedDirections []RTPTransceiverDirection
 }
 
-// A MediaEngine defines the codecs supported by a PeerConnection, and the
-// configuration of those codecs.
+// MediaEngine 定义了 PeerConnection 支持的编解码器，以及这些编解码器的配置
 type MediaEngine struct {
-	// If we have attempted to negotiate a codec type yet.
+	// 标记是否已经尝试协商过某种编解码器类型
 	negotiatedVideo, negotiatedAudio bool
 	negotiateMultiCodecs             bool
 
@@ -44,7 +44,7 @@ type MediaEngine struct {
 	mu sync.RWMutex
 }
 
-// setMultiCodecNegotiation enables or disables the negotiation of multiple codecs.
+// setMultiCodecNegotiation 启用或禁用多编解码器协商能力
 func (m *MediaEngine) setMultiCodecNegotiation(negotiateMultiCodecs bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -52,7 +52,7 @@ func (m *MediaEngine) setMultiCodecNegotiation(negotiateMultiCodecs bool) {
 	m.negotiateMultiCodecs = negotiateMultiCodecs
 }
 
-// multiCodecNegotiation returns the current state of the negotiation of multiple codecs.
+// multiCodecNegotiation 返回当前是否开启多编解码器协商能力
 func (m *MediaEngine) multiCodecNegotiation() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -60,10 +60,10 @@ func (m *MediaEngine) multiCodecNegotiation() bool {
 	return m.negotiateMultiCodecs
 }
 
-// RegisterDefaultCodecs registers the default codecs supported by Pion WebRTC.
-// RegisterDefaultCodecs is not safe for concurrent use.
+// RegisterDefaultCodecs 注册 Pion WebRTC 默认支持的一组编解码器
+// RegisterDefaultCodecs 不是并发安全的，不要在多 goroutine 中同时调用
 func (m *MediaEngine) RegisterDefaultCodecs() error {
-	// Default Pion Audio Codecs
+	// Pion 默认音频编解码器（Opus/G722/PCMU/PCMA）
 	for _, codec := range []RTPCodecParameters{
 		{
 			RTPCodecCapability: RTPCodecCapability{MimeTypeOpus, 48000, 2, "minptime=10;useinbandfec=1", nil},
@@ -87,6 +87,7 @@ func (m *MediaEngine) RegisterDefaultCodecs() error {
 		}
 	}
 
+	// Pion 默认视频编解码器（VP8 + RTX/H264 + RTX/H264 + RTX/AV1 + RTX）
 	videoRTCPFeedback := []RTCPFeedback{{"goog-remb", ""}, {"ccm", "fir"}, {"nack", ""}, {"nack", "pli"}}
 	for _, codec := range []RTPCodecParameters{
 		{
@@ -236,7 +237,7 @@ func (m *MediaEngine) RegisterDefaultCodecs() error {
 	return nil
 }
 
-// addCodec will append codec if it not exists.
+// addCodec 会在不存在该编解码器时将其追加到列表中
 func (m *MediaEngine) addCodec(codecs []RTPCodecParameters, codec RTPCodecParameters) ([]RTPCodecParameters, error) {
 	for _, c := range codecs {
 		if c.PayloadType == codec.PayloadType {
@@ -253,8 +254,8 @@ func (m *MediaEngine) addCodec(codecs []RTPCodecParameters, codec RTPCodecParame
 	return append(codecs, codec), nil
 }
 
-// RegisterCodec adds codec to the MediaEngine
-// These are the list of codecs supported by this PeerConnection.
+// RegisterCodec 将编解码器添加到 MediaEngine 中
+// 这些就是当前 PeerConnection 所支持的编解码器列表
 func (m *MediaEngine) RegisterCodec(codec RTPCodecParameters, typ RTPCodecType) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -273,8 +274,8 @@ func (m *MediaEngine) RegisterCodec(codec RTPCodecParameters, typ RTPCodecType) 
 	return err
 }
 
-// RegisterHeaderExtension adds a header extension to the MediaEngine
-// To determine the negotiated value use `GetHeaderExtensionID` after signaling is complete.
+// RegisterHeaderExtension 向 MediaEngine 注册一个 RTP 头部扩展
+// 要获取协商出的扩展 ID，可在信令完成后调用 `GetHeaderExtensionID`
 //
 //nolint:cyclop
 func (m *MediaEngine) RegisterHeaderExtension(
@@ -323,7 +324,7 @@ func (m *MediaEngine) RegisterHeaderExtension(
 	return nil
 }
 
-// RegisterFeedback adds feedback mechanism to already registered codecs.
+// RegisterFeedback 为已注册的编解码器增加 RTCP 反馈机制
 func (m *MediaEngine) RegisterFeedback(feedback RTCPFeedback, typ RTPCodecType) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -363,8 +364,7 @@ func (m *MediaEngine) getHeaderExtensionID(extension RTPHeaderExtensionCapabilit
 	return
 }
 
-// copy copies any user modifiable state of the MediaEngine
-// all internal state is reset.
+// copy 复制 MediaEngine 中用户可修改的状态，所有内部运行时状态都会被重置
 func (m *MediaEngine) copy() *MediaEngine {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -394,8 +394,9 @@ func (m *MediaEngine) getCodecByPayload(payloadType PayloadType) (RTPCodecParame
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	// if we've negotiated audio or video, check the negotiated types before our
-	// built-in payload types, to ensure we pick the codec the other side wants.
+	// 如果已经协商出音频或视频编解码器，
+	// 则优先在协商后的集合中查找，而不是依赖内置的 payload 类型，
+	// 以保证选择到对端真正期望的编解码器
 	if m.negotiatedVideo {
 		if codec := findCodecByPayload(m.negotiatedVideoCodecs, payloadType); codec != nil {
 			return *codec, RTPCodecTypeVideo, nil
@@ -446,7 +447,7 @@ func (m *MediaEngine) collectStats(collector *statsReportCollector) {
 	statsLoop(m.audioCodecs)
 }
 
-// Look up a codec and enable if it exists.
+// 查找并启用某个编解码器（如果本地支持该编解码器）
 //
 //nolint:cyclop
 func (m *MediaEngine) matchRemoteCodec(
@@ -522,7 +523,7 @@ func (m *MediaEngine) matchRemoteCodec(
 	return localCodec, matchType, nil
 }
 
-// Update header extensions from a remote media section.
+// 从远端的媒体描述（m-line）中更新 RTP 头部扩展配置
 func (m *MediaEngine) updateHeaderExtensionFromMediaSection(media *sdp.MediaDescription) error {
 	var typ RTPCodecType
 	switch {
@@ -547,7 +548,7 @@ func (m *MediaEngine) updateHeaderExtensionFromMediaSection(media *sdp.MediaDesc
 	return nil
 }
 
-// Look up a header extension and enable if it exists.
+// 查找某个头部扩展并在本地启用它（如果存在）
 func (m *MediaEngine) updateHeaderExtension(id int, extension string, typ RTPCodecType) error {
 	if m.negotiatedHeaderExtensions == nil {
 		return nil
@@ -591,7 +592,7 @@ func (m *MediaEngine) pushCodecs(codecs []RTPCodecParameters, typ RTPCodecType) 
 	return joinedErr
 }
 
-// Update the MediaEngine from a remote description.
+// 根据远端的 SDP 描述，更新本地 MediaEngine 的协商结果
 func (m *MediaEngine) updateFromRemoteDescription(desc sdp.SessionDescription) error { //nolint:cyclop,gocognit
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -612,10 +613,10 @@ func (m *MediaEngine) updateFromRemoteDescription(desc sdp.SessionDescription) e
 		case !m.negotiatedVideo && typ == RTPCodecTypeVideo:
 			m.negotiatedVideo = true
 		default:
-			// update header extesions from remote sdp if codec is negotiated, Firefox
-			// would send updated header extension in renegotiation.
-			// e.g. publish first track without simucalst ->negotiated-> publish second track with simucalst
-			// then the two media secontions have different rtp header extensions in offer
+			// 如果对应类型的编解码器已经协商过，则只更新头部扩展
+			// 比如 Firefox 在重新协商时可能发送新的头部扩展：
+			// 例如：先发布一条不带 simulcast 的 track -> 协商完成 -> 再发布一条带 simulcast 的 track，
+			// 此时两个媒体描述在 offer 中就会有不同的 RTP 头部扩展，需要在这里同步更新
 			if err := m.updateHeaderExtensionFromMediaSection(media); err != nil {
 				return err
 			}
@@ -664,7 +665,7 @@ func (m *MediaEngine) updateFromRemoteDescription(desc sdp.SessionDescription) e
 				partialMatches = addIfNew(partialMatches, remoteCodec)
 			}
 		}
-		// second pass in case there were missed RTX codecs
+		// 第二次遍历，防止漏掉 RTX 之类的编解码器
 		for _, remoteCodec := range codecs {
 			localCodec, matchType, mErr := m.matchRemoteCodec(remoteCodec, typ, exactMatches, partialMatches)
 			if mErr != nil {
@@ -680,14 +681,14 @@ func (m *MediaEngine) updateFromRemoteDescription(desc sdp.SessionDescription) e
 			}
 		}
 
-		// use exact matches when they exist, otherwise fall back to partial
+		// 如果存在完全匹配的编解码器，就优先使用完全匹配；否则退而求其次使用部分匹配
 		switch {
 		case len(exactMatches) > 0:
 			err = m.pushCodecs(exactMatches, typ)
 		case len(partialMatches) > 0:
 			err = m.pushCodecs(partialMatches, typ)
 		default:
-			// no match, not negotiated
+			// 没有任何匹配的编解码器，本条 m-line 视为未协商成功
 			continue
 		}
 		if err != nil {
@@ -727,7 +728,7 @@ func (m *MediaEngine) getCodecsByKind(typ RTPCodecType) []RTPCodecParameters {
 func (m *MediaEngine) getRTPParametersByKind(typ RTPCodecType, directions []RTPTransceiverDirection) RTPParameters {
 	headerExtensions := make([]RTPHeaderExtensionParameter, 0)
 
-	// perform before locking to prevent recursive RLocks
+	// 在加锁之前执行，避免递归 RLock 的问题
 	foundCodecs := m.getCodecsByKind(typ)
 
 	m.mu.RLock()

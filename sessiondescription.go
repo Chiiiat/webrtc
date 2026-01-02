@@ -11,20 +11,20 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// ICETrickleCapability represents whether the remote endpoint accepts
-// trickled ICE candidates.
+// ICETrickleCapability 表示远程端点是否接受
+// 延迟发送的ICE候选者
 type ICETrickleCapability int
 
 const (
-	// ICETrickleCapabilityUnknown no remote peer has been established.
+	// ICETrickleCapabilityUnknown 没有建立远程对等端
 	ICETrickleCapabilityUnknown ICETrickleCapability = iota
-	// ICETrickleCapabilitySupported remote peer can accept trickled ICE candidates.
+	// ICETrickleCapabilitySupported 远程对等端可以接受延迟发送的ICE候选者
 	ICETrickleCapabilitySupported
-	// ICETrickleCapabilitySupported remote peer didn't state that it can accept trickle ICE candidates.
+	// ICETrickleCapabilitySupported 远程对等端没有声明它可以接受延迟发送的ICE候选者
 	ICETrickleCapabilityUnsupported
 )
 
-// String returns the string representation of ICETrickleCapability.
+// String 返回ICETrickleCapability的字符串表示
 func (t ICETrickleCapability) String() string {
 	switch t {
 	case ICETrickleCapabilitySupported:
@@ -36,16 +36,16 @@ func (t ICETrickleCapability) String() string {
 	}
 }
 
-// SessionDescription is used to expose local and remote session descriptions.
+// SessionDescription 用于公开本地和远程会话描述
 type SessionDescription struct {
 	Type SDPType `json:"type"`
 	SDP  string  `json:"sdp"`
 
-	// This will never be initialized by callers, internal use only
+	// 这永远不会被调用者初始化，仅供内部使用
 	parsed *sdp.SessionDescription
 }
 
-// Unmarshal is a helper to deserialize the sdp.
+// Unmarshal 是一个用于反序列化sdp的辅助函数
 func (sd *SessionDescription) Unmarshal() (*sdp.SessionDescription, error) {
 	sd.parsed = &sdp.SessionDescription{}
 	err := sd.parsed.UnmarshalString(sd.SDP)

@@ -5,7 +5,7 @@ package webrtc
 
 import "fmt"
 
-// ICECandidatePair represents an ICE Candidate pair.
+// ICECandidatePair 表示一个 ICE 候选对
 type ICECandidatePair struct {
 	statsID string
 	Local   *ICECandidate
@@ -20,8 +20,8 @@ func (p *ICECandidatePair) String() string {
 	return fmt.Sprintf("(local) %s <-> (remote) %s", p.Local, p.Remote)
 }
 
-// NewICECandidatePair returns an initialized *ICECandidatePair
-// for the given pair of ICECandidate instances.
+// NewICECandidatePair 返回一个初始化的 *ICECandidatePair
+// 用于给定的 ICECandidate 实例对
 func NewICECandidatePair(local, remote *ICECandidate) *ICECandidatePair {
 	statsID := newICECandidatePairStatsID(local.statsID, remote.statsID)
 

@@ -19,8 +19,8 @@ import (
 	"github.com/pion/webrtc/v4/internal/util"
 )
 
-// ICETransport allows an application access to information about the ICE
-// transport over which packets are sent and received.
+// ICETransport 允许应用程序访问有关 ICE
+// 传输的信息，数据包通过该传输发送和接收
 type ICETransport struct {
 	lock sync.RWMutex
 
@@ -43,8 +43,8 @@ type ICETransport struct {
 	log logging.LeveledLogger
 }
 
-// GetSelectedCandidatePair returns the selected candidate pair on which packets are sent
-// if there is no selected pair nil is returned.
+// GetSelectedCandidatePair 返回用于发送数据包的已选候选对
+// 如果没有已选对，则返回 nil
 func (t *ICETransport) GetSelectedCandidatePair() (*ICECandidatePair, error) {
 	agent := t.gatherer.getAgent()
 	if agent == nil {
@@ -69,13 +69,13 @@ func (t *ICETransport) GetSelectedCandidatePair() (*ICECandidatePair, error) {
 	return NewICECandidatePair(&local, &remote), nil
 }
 
-// GetSelectedCandidatePairStats returns the selected candidate pair stats on which packets are sent
-// if there is no selected pair empty stats, false is returned to indicate stats not available.
+// GetSelectedCandidatePairStats 返回用于发送数据包的已选候选对统计信息
+// 如果没有已选对，则返回空统计信息和 false 以表示统计信息不可用
 func (t *ICETransport) GetSelectedCandidatePairStats() (ICECandidatePairStats, bool) {
 	return t.gatherer.getSelectedCandidatePairStats()
 }
 
-// NewICETransport creates a new NewICETransport.
+// NewICETransport 创建一个新的 NewICETransport
 func NewICETransport(gatherer *ICEGatherer, loggerFactory logging.LoggerFactory) *ICETransport {
 	iceTransport := &ICETransport{
 		gatherer:      gatherer,
@@ -87,7 +87,7 @@ func NewICETransport(gatherer *ICEGatherer, loggerFactory logging.LoggerFactory)
 	return iceTransport
 }
 
-// Start incoming connectivity checks based on its configured role.
+// 根据配置的角色开始传入连接性检查
 func (t *ICETransport) Start(gatherer *ICEGatherer, params ICEParameters, role *ICERole) error { //nolint:cyclop
 	t.lock.Lock()
 	defer t.lock.Unlock()
@@ -248,8 +248,8 @@ func (t *ICETransport) stop(shouldGracefullyClose bool) error {
 	return nil
 }
 
-// OnSelectedCandidatePairChange sets a handler that is invoked when a new
-// ICE candidate pair is selected.
+// OnSelectedCandidatePairChange 设置一个处理程序，当选择新的
+// ICE 候选对时调用
 func (t *ICETransport) OnSelectedCandidatePairChange(f func(*ICECandidatePair)) {
 	t.onSelectedCandidatePairChangeHandler.Store(f)
 }
@@ -260,8 +260,8 @@ func (t *ICETransport) onSelectedCandidatePairChange(pair *ICECandidatePair) {
 	}
 }
 
-// OnConnectionStateChange sets a handler that is fired when the ICE
-// connection state changes.
+// OnConnectionStateChange 设置一个处理程序，当 ICE
+// 连接状态更改时触发
 func (t *ICETransport) OnConnectionStateChange(f func(ICETransportState)) {
 	t.onConnectionStateChangeHandler.Store(f)
 }
@@ -275,7 +275,7 @@ func (t *ICETransport) onConnectionStateChange(state ICETransportState) {
 	}
 }
 
-// Role indicates the current role of the ICE transport.
+// Role 表示 ICE 传输的当前角色
 func (t *ICETransport) Role() ICERole {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
@@ -283,7 +283,7 @@ func (t *ICETransport) Role() ICERole {
 	return t.role
 }
 
-// SetRemoteCandidates sets the sequence of candidates associated with the remote ICETransport.
+// SetRemoteCandidates 设置与远程 ICETransport 关联的候选序列
 func (t *ICETransport) SetRemoteCandidates(remoteCandidates []ICECandidate) error {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
@@ -311,7 +311,7 @@ func (t *ICETransport) SetRemoteCandidates(remoteCandidates []ICECandidate) erro
 	return nil
 }
 
-// AddRemoteCandidate adds a candidate associated with the remote ICETransport.
+// AddRemoteCandidate 添加与远程 ICETransport 关联的候选
 func (t *ICETransport) AddRemoteCandidate(remoteCandidate *ICECandidate) error {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
@@ -339,7 +339,7 @@ func (t *ICETransport) AddRemoteCandidate(remoteCandidate *ICECandidate) error {
 	return agent.AddRemoteCandidate(candidate)
 }
 
-// State returns the current ice transport state.
+// State 返回当前 ice 传输状态
 func (t *ICETransport) State() ICETransportState {
 	if v, ok := t.state.Load().(ICETransportState); ok {
 		return v
@@ -348,8 +348,8 @@ func (t *ICETransport) State() ICETransportState {
 	return ICETransportState(0)
 }
 
-// GetLocalParameters returns an IceParameters object which provides information
-// uniquely identifying the local peer for the duration of the ICE session.
+// GetLocalParameters 返回一个 IceParameters 对象，该对象提供
+// 唯一标识 ICE 会话期间本地对等方的信息
 func (t *ICETransport) GetLocalParameters() (ICEParameters, error) {
 	if err := t.ensureGatherer(); err != nil {
 		return ICEParameters{}, err
@@ -358,8 +358,8 @@ func (t *ICETransport) GetLocalParameters() (ICEParameters, error) {
 	return t.gatherer.GetLocalParameters()
 }
 
-// GetRemoteParameters returns an IceParameters object which provides information
-// uniquely identifying the remote peer for the duration of the ICE session.
+// GetRemoteParameters 返回一个 IceParameters 对象，该对象提供
+// 唯一标识 ICE 会话期间远程对等方的信息
 func (t *ICETransport) GetRemoteParameters() (ICEParameters, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()

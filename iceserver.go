@@ -13,8 +13,8 @@ import (
 	"github.com/pion/webrtc/v4/pkg/rtcerr"
 )
 
-// ICEServer describes a single STUN and TURN server that can be used by
-// the ICEAgent to establish a connection with a peer.
+// ICEServer 描述了一个 STUN 和 TURN 服务器，可以被
+// ICEAgent 用来与对等方建立连接
 type ICEServer struct {
 	URLs           []string          `json:"urls"`
 	Username       string            `json:"username,omitempty"`

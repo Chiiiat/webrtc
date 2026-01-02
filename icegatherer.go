@@ -18,10 +18,10 @@ import (
 	"github.com/pion/stun/v3"
 )
 
-// ICEGatherer gathers local host, server reflexive and relay
-// candidates, as well as enabling the retrieval of local Interactive
-// Connectivity Establishment (ICE) parameters which can be
-// exchanged in signaling.
+// ICEGatherer 收集本地主机、服务器反射和中继
+// 候选者，以及启用本地交互式
+// 连接建立（ICE）参数的检索，这些参数可以在信令中
+// 交换
 type ICEGatherer struct {
 	lock  sync.RWMutex
 	log   logging.LeveledLogger
@@ -46,7 +46,7 @@ type ICEGatherer struct {
 	sdpMLineIndex atomic.Uint32 // uint16
 }
 
-// ICEAddressRewriteMode controls whether a rule replaces or appends candidates.
+// ICEAddressRewriteMode 控制规则是替换还是追加候选者
 type ICEAddressRewriteMode byte
 
 const (
@@ -59,7 +59,7 @@ func (r ICEAddressRewriteMode) toICE() ice.AddressRewriteMode {
 	return ice.AddressRewriteMode(r)
 }
 
-// ICEAddressRewriteRule represents a rule for remapping candidate addresses.
+// ICEAddressRewriteRule 表示重新映射候选地址的规则
 type ICEAddressRewriteRule struct {
 	External        []string
 	Local           string
@@ -88,9 +88,9 @@ func (r ICEAddressRewriteRule) toICE() ice.AddressRewriteRule {
 	return rule
 }
 
-// NewICEGatherer creates a new NewICEGatherer.
-// This constructor is part of the ORTC API. It is not
-// meant to be used together with the basic WebRTC API.
+// NewICEGatherer 创建一个新的 NewICEGatherer
+// 此构造函数是 ORTC API 的一部分。它不是
+// 与基本 WebRTC API 一起使用的
 func (api *API) NewICEGatherer(opts ICEGatherOptions) (*ICEGatherer, error) {
 	var validatedServers []*stun.URI
 	if len(opts.ICEServers) > 0 {
@@ -363,7 +363,7 @@ func legacyNAT1To1AddressRewriteRules(ips []string, candidateType ice.CandidateT
 	return rules
 }
 
-// Gather ICE candidates.
+// 收集 ICE 候选者
 func (g *ICEGatherer) Gather() error { //nolint:cyclop
 	if err := g.createAgent(); err != nil {
 		return err
@@ -416,20 +416,20 @@ func (g *ICEGatherer) Gather() error { //nolint:cyclop
 	return agent.GatherCandidates()
 }
 
-// set media stream identification tag and media description index for this gatherer.
+// 为该收集器设置媒体流标识标签和媒体描述索引
 func (g *ICEGatherer) setMediaStreamIdentification(mid string, mLineIndex uint16) {
 	g.sdpMid.Store(mid)
 	g.sdpMLineIndex.Store(uint32(mLineIndex))
 }
 
-// Close prunes all local candidates, and closes the ports.
+// Close 修剪所有本地候选者，并关闭端口
 func (g *ICEGatherer) Close() error {
 	return g.close(false /* shouldGracefullyClose */)
 }
 
-// GracefulClose prunes all local candidates, and closes the ports. It also waits
-// for any goroutines it started to complete. This is only safe to call outside of
-// ICEGatherer callbacks or if in a callback, in its own goroutine.
+// GracefulClose 修剪所有本地候选者，并关闭端口。它还会等待
+// 它启动的任何 goroutine 完成。这仅在
+// ICEGatherer 回调之外调用是安全的，或者如果在回调中，则在自己的 goroutine 中调用
 func (g *ICEGatherer) GracefulClose() error {
 	return g.close(true /* shouldGracefullyClose */)
 }
@@ -457,7 +457,7 @@ func (g *ICEGatherer) close(shouldGracefullyClose bool) error {
 	return nil
 }
 
-// GetLocalParameters returns the ICE parameters of the ICEGatherer.
+// GetLocalParameters 返回 ICEGatherer 的 ICE 参数
 func (g *ICEGatherer) GetLocalParameters() (ICEParameters, error) {
 	if err := g.createAgent(); err != nil {
 		return ICEParameters{}, err
@@ -481,7 +481,7 @@ func (g *ICEGatherer) GetLocalParameters() (ICEParameters, error) {
 	}, nil
 }
 
-// GetLocalCandidates returns the sequence of valid local candidates associated with the ICEGatherer.
+// GetLocalCandidates 返回与 ICEGatherer 关联的有效本地候选者序列
 func (g *ICEGatherer) GetLocalCandidates() ([]ICECandidate, error) {
 	if err := g.createAgent(); err != nil {
 		return nil, err
@@ -508,18 +508,18 @@ func (g *ICEGatherer) GetLocalCandidates() ([]ICECandidate, error) {
 	return newICECandidatesFromICE(iceCandidates, sdpMid, sdpMLineIndex)
 }
 
-// OnLocalCandidate sets an event handler which fires when a new local ICE candidate is available
-// Take note that the handler will be called with a nil pointer when gathering is finished.
+// OnLocalCandidate 设置一个事件处理程序，当新的本地 ICE 候选者可用时触发
+// 请注意，收集完成时处理程序将被调用，并传入一个 nil 指针
 func (g *ICEGatherer) OnLocalCandidate(f func(*ICECandidate)) {
 	g.onLocalCandidateHandler.Store(f)
 }
 
-// OnStateChange fires any time the ICEGatherer changes.
+// OnStateChange 在 ICEGatherer 发生任何变化时触发
 func (g *ICEGatherer) OnStateChange(f func(ICEGathererState)) {
 	g.onStateChangeHandler.Store(f)
 }
 
-// State indicates the current state of the ICE gatherer.
+// State 表示 ICE 收集器的当前状态
 func (g *ICEGatherer) State() ICEGathererState {
 	return atomicLoadICEGathererState(&g.state)
 }
@@ -620,6 +620,8 @@ func (g *ICEGatherer) collectStats(collector *statsReportCollector) {
 	}(collector, agent)
 }
 
+// collectStats 是一个收集 ICE 相关统计信息的辅助方法
+// 它从 PeerConnection 调用
 func (g *ICEGatherer) getSelectedCandidatePairStats() (ICECandidatePairStats, bool) {
 	agent := g.getAgent()
 	if agent == nil {

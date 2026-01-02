@@ -3,32 +3,31 @@
 
 package webrtc
 
-// DataChannelState indicates the state of a data channel.
+// DataChannelState表示数据通道的状态
 type DataChannelState int
 
 const (
-	// DataChannelStateUnknown is the enum's zero-value.
+	// DataChannelStateUnknown是枚举的零值
 	DataChannelStateUnknown DataChannelState = iota
 
-	// DataChannelStateConnecting indicates that the data channel is being
-	// established. This is the initial state of DataChannel, whether created
-	// with CreateDataChannel, or dispatched as a part of an DataChannelEvent.
+	// DataChannelStateConnecting表示数据通道正在建立中
+	// 这是DataChannel的初始状态，无论是使用
+	// CreateDataChannel创建，还是作为DataChannelEvent的一部分分发
 	DataChannelStateConnecting
 
-	// DataChannelStateOpen indicates that the underlying data transport is
-	// established and communication is possible.
+	// DataChannelStateOpen表示底层数据传输已建立，可以进行通信
 	DataChannelStateOpen
 
-	// DataChannelStateClosing indicates that the procedure to close down the
-	// underlying data transport has started.
+	// DataChannelStateClosing表示
+	// 关闭底层数据传输的过程已经开始
 	DataChannelStateClosing
 
-	// DataChannelStateClosed indicates that the underlying data transport
-	// has been closed or could not be established.
+	// DataChannelStateClosed表示
+	// 底层数据传输已关闭或无法建立
 	DataChannelStateClosed
 )
 
-// This is done this way because of a linter.
+// 这样做是因为linter的要求
 const (
 	dataChannelStateConnectingStr = "connecting"
 	dataChannelStateOpenStr       = "open"
@@ -51,6 +50,8 @@ func newDataChannelState(raw string) DataChannelState {
 	}
 }
 
+// newDataChannelState根据原始字符串创建DataChannelState值
+
 func (t DataChannelState) String() string {
 	switch t {
 	case DataChannelStateConnecting:
@@ -66,12 +67,14 @@ func (t DataChannelState) String() string {
 	}
 }
 
-// MarshalText implements encoding.TextMarshaler.
+// String返回DataChannelState的字符串表示
+
+// MarshalText实现encoding.TextMarshaler接口
 func (t DataChannelState) MarshalText() ([]byte, error) {
 	return []byte(t.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler.
+// UnmarshalText实现encoding.TextUnmarshaler接口
 func (t *DataChannelState) UnmarshalText(b []byte) error {
 	*t = newDataChannelState(string(b))
 

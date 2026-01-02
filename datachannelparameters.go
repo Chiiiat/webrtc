@@ -3,7 +3,7 @@
 
 package webrtc
 
-// DataChannelParameters describes the configuration of the DataChannel.
+// DataChannelParameters描述DataChannel的配置
 type DataChannelParameters struct {
 	Label             string  `json:"label"`
 	Protocol          string  `json:"protocol"`

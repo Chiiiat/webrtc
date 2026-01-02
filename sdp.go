@@ -21,8 +21,8 @@ import (
 	"github.com/pion/sdp/v3"
 )
 
-// trackDetails represents any media source that can be represented in a SDP
-// This isn't keyed by SSRC because it also needs to support rid based sources.
+// trackDetails 表示可以在SDP中表示的任何媒体源
+// 这不是由SSRC键控的，因为它还需要支持基于rid的源
 type trackDetails struct {
 	mid      string
 	kind     RTPCodecType
@@ -73,7 +73,7 @@ func filterTrackWithSSRC(incomingTracks []trackDetails, ssrc SSRC) []trackDetail
 	return filtered
 }
 
-// extract all trackDetails from an SDP.
+// 从SDP中提取所有trackDetails
 //
 //nolint:gocognit,gocyclo,cyclop
 func trackDetailsFromSDP(
@@ -170,9 +170,9 @@ func trackDetailsFromSDP(
 					}
 				}
 
-			// Handle `a=msid:<stream_id> <track_label>` for Unified plan. The first value is the same as MediaStream.id
-			// in the browser and can be used to figure out which tracks belong to the same stream. The browser should
-			// figure this out automatically when an ontrack event is emitted on RTCPeerConnection.
+			// 为Unified plan处理`a=msid:<stream_id> <track_label>`。第一个值与浏览器中的MediaStream.id相同
+			// 可用于确定哪些轨道属于同一流。浏览器应该
+			// 在RTCPeerConnection上发出ontrack事件时自动确定这一点
 			case sdp.AttrKeyMsid:
 				split := strings.Split(attr.Value, " ")
 				if len(split) == 2 {
@@ -686,7 +686,7 @@ func bundleMatchFromRemote(matchBundleGroup *string) func(mid string) bool {
 	}
 }
 
-// populateSDP serializes a PeerConnections state into an SDP.
+// populateSDP 将PeerConnection的状态序列化为SDP
 //
 //nolint:cyclop
 func populateSDP(
@@ -806,7 +806,7 @@ func getMidValue(media *sdp.MediaDescription) string {
 	return ""
 }
 
-// SessionDescription contains a MediaSection with Multiple SSRCs, it is Plan-B.
+// SessionDescription包含具有多个SSRC的MediaSection，这是Plan-B
 func descriptionIsPlanB(desc *SessionDescription, log logging.LeveledLogger) bool {
 	if desc == nil || desc.parsed == nil {
 		return false
@@ -825,9 +825,9 @@ func descriptionIsPlanB(desc *SessionDescription, log logging.LeveledLogger) boo
 	return false
 }
 
-// SessionDescription contains a MediaSection with name `audio`, `video` or `data`
-// If only one SSRC is set we can't know if it is Plan-B or Unified. If users have
-// set fallback mode assume it is Plan-B.
+// SessionDescription包含名称为`audio`、`video`或`data`的MediaSection
+// 如果只设置了一个SSRC，我们无法知道它是Plan-B还是Unified。如果用户
+// 设置了回退模式，假设它是Plan-B
 func descriptionPossiblyPlanB(desc *SessionDescription) bool {
 	if desc == nil || desc.parsed == nil {
 		return false
@@ -917,7 +917,7 @@ func extractFingerprint(desc *sdp.SessionDescription) (string, string, error) { 
 	return parts[1], parts[0], nil
 }
 
-// identifiedMediaDescription contains a MediaDescription with sdpMid and sdpMLineIndex.
+// identifiedMediaDescription包含具有sdpMid和sdpMLineIndex的MediaDescription
 type identifiedMediaDescription struct {
 	MediaDescription *sdp.MediaDescription
 	SDPMid           string
@@ -1038,8 +1038,8 @@ func extractICEDetails(
 	return details, nil
 }
 
-// Select the first media section or the first bundle section
-// Currently Pion uses the first media section to gather candidates.
+// 选择第一个媒体部分或第一个捆绑部分
+// 目前Pion使用第一个媒体部分来收集候选者
 // https://github.com/pion/webrtc/pull/2950
 func selectCandidateMediaSection(sessionDescription *sdp.SessionDescription) (
 	descr *identifiedMediaDescription,
@@ -1081,7 +1081,7 @@ func getByMid(searchMid string, desc *SessionDescription) *sdp.MediaDescription 
 	return nil
 }
 
-// haveDataChannel return MediaDescription with MediaName equal application.
+// haveDataChannel 返回MediaName等于application的MediaDescription
 func haveDataChannel(desc *SessionDescription) *sdp.MediaDescription {
 	for _, d := range desc.parsed.MediaDescriptions {
 		if d.MediaName.Media == mediaSectionApplication {
@@ -1161,9 +1161,9 @@ func rtpExtensionsFromMediaDescription(m *sdp.MediaDescription) (map[string]int,
 	return out, nil
 }
 
-// updateSDPOrigin saves sdp.Origin in PeerConnection when creating 1st local SDP;
-// for subsequent calling, it updates Origin for SessionDescription from saved one
-// and increments session version by one.
+// updateSDPOrigin 在创建第一个本地SDP时在PeerConnection中保存sdp.Origin
+// 对于后续调用，它从保存的源更新SessionDescription的源
+// 并将会话版本增加一
 // https://tools.ietf.org/html/draft-ietf-rtcweb-jsep-25#section-5.2.2
 func updateSDPOrigin(origin *sdp.Origin, descr *sdp.SessionDescription) {
 	if atomic.CompareAndSwapUint64(&origin.SessionVersion, 0, descr.Origin.SessionVersion) { // store

@@ -9,7 +9,7 @@ import (
 	"github.com/pion/ice/v4"
 )
 
-// ICECandidate represents a ice candidate.
+// ICECandidate 表示一个 ice 候选
 type ICECandidate struct {
 	statsID        string
 	Foundation     string           `json:"foundation"`
@@ -27,7 +27,7 @@ type ICECandidate struct {
 	extensions     string
 }
 
-// Conversion for package ice.
+// 用于包 ice 的转换
 func newICECandidatesFromICE(
 	iceCandidates []ice.Candidate,
 	sdpMid string,
@@ -80,7 +80,7 @@ func newICECandidateFromICE(candidate ice.Candidate, sdpMid string, sdpMLineInde
 	return newCandidate, nil
 }
 
-// ToICE converts ICECandidate to ice.Candidate.
+// ToICE 将 ICECandidate 转换为 ice.Candidate
 func (c ICECandidate) ToICE() (cand ice.Candidate, err error) {
 	candidateID := c.statsID
 	switch c.Typ {
@@ -225,8 +225,8 @@ func (c ICECandidate) String() string {
 	return ic.String()
 }
 
-// ToJSON returns an ICECandidateInit
-// as indicated by the spec https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-tojson
+// ToJSON 返回一个 ICECandidateInit
+// 如规范 https://w3c.github.io/webrtc-pc/#dom-rtcicecandidate-tojson 所示
 func (c ICECandidate) ToJSON() ICECandidateInit {
 	candidateStr := ""
 
